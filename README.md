@@ -55,23 +55,23 @@ a simple javascript examples
 ```
 
 ## Configuration
-```json
+```python
 {
-  "addr": "127.0.0.1", // the subscriber listen address
-  "port": 8080, // the subscriber listen port
-  "pprof_addr": "127.0.0.1", // the performance profile listen address
-  "pprof_port": 8080, // the performance profile listen port
-  "pub_addr": "127.0.0.1", // the publisher listen address
-  "pub_port": 8080, // the publisher listen address
-  "pprof": 1, // the performance profile flag (1: open, 0: close)
-  "log": "/tmp/gopush.log", // the gopush2 log file path
-  "message_expire_sec": 7200, // the default message expire second
-  "channel_expire_sec": 60, // the default channel expire second
-  "max_stored_message": 20, // the max stored message for a subscriber
-  "max_procs": 4, // the service used cpu cores
-  "max_subscriber_per_key": 1, // the max subscriber per key
-  "tcp_keepalive": 1, // use SO_KEEPALIVE, for lost tcp connection fast detection (1: open, 0: close)
-  "debug": 1 // use test client, http://xx:xx/client (1: open, 0: close)
+  "addr": "127.0.0.1", # the subscriber listen address
+  "port": 8080, # the subscriber listen port
+  "pprof_addr": "127.0.0.1", # the performance profile listen address
+  "pprof_port": 8080, # the performance profile listen port
+  "pub_addr": "127.0.0.1", # the publisher listen address
+  "pub_port": 8080, # the publisher listen address
+  "pprof": 1, # the performance profile flag (1: open, 0: close)
+  "log": "/tmp/gopush.log", # the gopush2 log file path
+  "message_expire_sec": 7200, # the default message expire second
+  "channel_expire_sec": 60, # the default channel expire second
+  "max_stored_message": 20, # the max stored message for a subscriber
+  "max_procs": 4, # the service used cpu cores
+  "max_subscriber_per_key": 1, # the max subscriber per key
+  "tcp_keepalive": 1, # use SO_KEEPALIVE, for lost tcp connection fast detection (1: open, 0: close)
+  "debug": 1 # use test client, http://xx:xx/client (1: open, 0: close)
 }
 ```
 
