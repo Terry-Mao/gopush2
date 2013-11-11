@@ -19,6 +19,7 @@ type Subscriber struct {
 	Token      string
 	Expire     int64
 	MaxMessage int
+    Key        string
 }
 
 var (
@@ -38,6 +39,7 @@ func AddChannel(key string) *Subscriber {
 	if s, ok = channel[key]; !ok {
 		s = NewSubscriber()
 		channel[key] = s
+        s.Key = key
 	}
 
 	return s
@@ -89,6 +91,7 @@ func (s *Subscriber) Message(mid int64) ([]string, []int64) {
 	// delete the expired message
 	for _, score := range expired {
 		s.message.Delete(score)
+        Log.Printf("delete the expired message %d for device %s", score, s.Key)
 	}
 
 	return msgs, scores
@@ -98,6 +101,7 @@ func (s *Subscriber) AddConn(ws *websocket.Conn) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+    Log.Printf("add websocket.Conn to %s", s.Key)
 	s.conn[ws] = true
 }
 
@@ -105,11 +109,16 @@ func (s *Subscriber) RemoveConn(ws *websocket.Conn) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+    Log.Printf("remove websocket.Conn to %s", s.Key)
 	delete(s.conn, ws)
 }
 
 func (s *Subscriber) AddMessage(msg string, expire int64) {
 	now := time.Now().UnixNano()
+    if now >= expire {
+        Log.Printf("message %s has already expired now(%d) >= expire(%d)", msg, now, expire)
+        return
+    }
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -124,6 +133,7 @@ func (s *Subscriber) AddMessage(msg string, expire int64) {
 		}
 
 		s.message.Delete(n.Score)
+        Log.Printf("key %s exceed the maxmessage setting, trim the subscriber", s.Key)
 	}
 
 	for {
@@ -144,6 +154,8 @@ func (s *Subscriber) AddMessage(msg string, expire int64) {
 			// delete(s.conn, ws)
 			Log.Printf("retWrite() failed (%s)", err.Error())
 		}
+
+        Log.Printf("add message %s:%d to device %s", msg, now, s.Key)
 	}
 
 	return
@@ -197,7 +209,7 @@ func Subscribe(ws *websocket.Conn) {
 		return
 	}
 
-	Log.Printf("Client (%s) subscribe to key %s with mid = %s", ws.Request().RemoteAddr, subKey, midStr)
+	Log.Printf("client (%s) subscribe to key %s with mid = %s", ws.Request().RemoteAddr, subKey, midStr)
 	// get subscriber
 	sub := AddChannel(subKey)
 	// add a conn to the subscriber
@@ -240,7 +252,7 @@ func retWrite(ws *websocket.Conn, msg string, msgID int64) error {
 	}
 
 	respJson := string(strJson)
-	Log.Printf("Respjson : %s", respJson)
+	Log.Printf("send to client: %s", respJson)
 	if _, err := ws.Write(strJson); err != nil {
 		Log.Printf("ws.Write(\"%s\") failed (%s)", respJson, err.Error())
 		return err
