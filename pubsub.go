@@ -3,6 +3,7 @@ package main
 import (
 	"code.google.com/p/go.net/websocket"
 	"encoding/json"
+	"errors"
 	"github.com/Terry-Mao/gopush2/skiplist"
 	"io/ioutil"
 	"net/http"
@@ -10,20 +11,23 @@ import (
 	"strconv"
 	"sync"
 	"time"
-    "errors"
 )
 
 const (
-	Second = int64(time.Second)
+	Second            = int64(time.Second)
+	RetInternalErr    = 65535
+	RetChannelExpired = 1
+	RetOK             = 0
 )
 
 var (
-	chMutex = &sync.Mutex{}
-	channel = map[string]*Subscriber{}
-    ErrMaxConn = errors.New("Exceed the max subscriber connection per key")
+	chMutex    = &sync.Mutex{}
+	channel    = map[string]*Subscriber{}
+	ErrMaxConn = errors.New("Exceed the max subscriber connection per key")
+	ErrExpired = errors.New("Channel expired")
 )
 
-func fetchChannel(key string) *Subscriber {
+func subChannel(key string) *Subscriber {
 	var (
 		s   *Subscriber
 		ok  bool
@@ -53,6 +57,35 @@ func fetchChannel(key string) *Subscriber {
 	}
 
 	return s
+}
+
+func pubChannel(key string) (*Subscriber, error) {
+	var (
+		s   *Subscriber
+		ok  bool
+		now = time.Now().UnixNano()
+	)
+
+	chMutex.Lock()
+	defer chMutex.Unlock()
+
+	if s, ok = channel[key]; !ok {
+		// not exists subscriber for the key
+		s = NewSubscriber()
+		channel[key] = s
+		s.Key = key
+	} else {
+		// check expired
+		if now >= s.Expire {
+			// let gc free the old subscriber
+			Log.Printf("device %s drop the expired channel, now(%d) > expire(%d)", key, now, s.Expire)
+			// drop the key
+			delete(channel, key)
+			return nil, ErrExpired
+		}
+	}
+
+	return s, nil
 }
 
 type Subscriber struct {
@@ -121,14 +154,14 @@ func (s *Subscriber) AddConn(ws *websocket.Conn) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-    if len(s.conn) + 1 > Conf.MaxSubscriberPerKey {
-        return ErrMaxConn
-    }
+	if len(s.conn)+1 > Conf.MaxSubscriberPerKey {
+		return ErrMaxConn
+	}
 
 	Log.Printf("add websocket.Conn to %s", s.Key)
 	s.conn[ws] = true
 
-    return nil
+	return nil
 }
 
 func (s *Subscriber) RemoveConn(ws *websocket.Conn) {
@@ -174,10 +207,10 @@ func (s *Subscriber) AddMessage(msg string, expire int64) {
 
 	// send message to all the clients
 	for ws, _ := range s.conn {
-		if err := retWrite(ws, msg, now); err != nil {
+		if err := subRetWrite(ws, msg, now); err != nil {
 			// remove exists conn
 			// delete(s.conn, ws)
-			Log.Printf("retWrite() failed (%s)", err.Error())
+			Log.Printf("subRetWrite() failed (%s)", err.Error())
 		}
 
 		Log.Printf("add message %s:%d to device %s", msg, now, s.Key)
@@ -206,13 +239,34 @@ func Publish(w http.ResponseWriter, r *http.Request) {
 	expire = time.Now().UnixNano() + expire*Second
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, "read body error", 500)
+		if err = pubRetWrite(w, "read http body error", RetInternalErr); err != nil {
+			Log.Printf("pubRetWrite() failed (%s)", err.Error())
+		}
+
 		return
 	}
 
 	// fetch subscriber from the channel
-	sub := fetchChannel(key)
-	sub.AddMessage(string(body), expire)
+	sub, err := pubChannel(key)
+	if sub != nil {
+		sub.AddMessage(string(body), expire)
+	} else if err == ErrExpired {
+		if err = pubRetWrite(w, "channel expired", RetChannelExpired); err != nil {
+			Log.Printf("pubRetWrite() failed (%s)", err.Error())
+		}
+
+		return
+	} else {
+		if err = pubRetWrite(w, "unknown error", RetInternalErr); err != nil {
+			Log.Printf("pubRetWrite() failed (%s)", err.Error())
+		}
+
+		return
+	}
+
+	if err = pubRetWrite(w, "ok", RetOK); err != nil {
+		Log.Printf("pubRetWrite() failed (%s)", err.Error())
+	}
 
 	return
 }
@@ -234,12 +288,12 @@ func Subscribe(ws *websocket.Conn) {
 
 	Log.Printf("client (%s) subscribe to key %s with mid = %s", ws.Request().RemoteAddr, subKey, midStr)
 	// fetch subscriber from the channel
-	sub := fetchChannel(subKey)
+	sub := subChannel(subKey)
 	// add a conn to the subscriber
 	if err := sub.AddConn(ws); err != nil {
-        Log.Printf("sub.AddConn failed (%s)", err.Error())
-        return
-    }
+		Log.Printf("sub.AddConn failed (%s)", err.Error())
+		return
+	}
 
 	// remove exists conn
 	defer sub.RemoveConn(ws)
@@ -249,10 +303,10 @@ func Subscribe(ws *websocket.Conn) {
 		for i := 0; i < len(msgs); i++ {
 			msg := msgs[i]
 			score := scores[i]
-			if err = retWrite(ws, msg, score); err != nil {
+			if err = subRetWrite(ws, msg, score); err != nil {
 				// remove exists conn
 				// delete(s.conn, ws)
-				Log.Printf("retWrite() failed (%s)", err.Error())
+				Log.Printf("subRetWrite() failed (%s)", err.Error())
 				return
 			}
 		}
@@ -267,7 +321,28 @@ func Subscribe(ws *websocket.Conn) {
 	return
 }
 
-func retWrite(ws *websocket.Conn, msg string, msgID int64) error {
+func pubRetWrite(w http.ResponseWriter, msg string, ret int) error {
+	res := map[string]interface{}{}
+	res["msg"] = msg
+	res["ret"] = ret
+
+	strJson, err := json.Marshal(res)
+	if err != nil {
+		Log.Printf("json.Marshal(\"%v\") failed", res)
+		return err
+	}
+
+	respJson := string(strJson)
+	Log.Printf("pub send to client: %s", respJson)
+	if _, err := w.Write(strJson); err != nil {
+		Log.Printf("w.Write(\"%s\") failed (%s)", respJson, err.Error())
+		return err
+	}
+
+	return nil
+}
+
+func subRetWrite(ws *websocket.Conn, msg string, msgID int64) error {
 	res := map[string]interface{}{}
 	res["msg"] = msg
 	res["msg_id"] = msgID
@@ -279,7 +354,7 @@ func retWrite(ws *websocket.Conn, msg string, msgID int64) error {
 	}
 
 	respJson := string(strJson)
-	Log.Printf("send to client: %s", respJson)
+	Log.Printf("sub send to client: %s", respJson)
 	if _, err := ws.Write(strJson); err != nil {
 		Log.Printf("ws.Write(\"%s\") failed (%s)", respJson, err.Error())
 		return err
