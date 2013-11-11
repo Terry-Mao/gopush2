@@ -10,25 +10,17 @@ import (
 	"strconv"
 	"sync"
 	"time"
+    "errors"
 )
 
 const (
 	Second = int64(time.Second)
 )
 
-type Subscriber struct {
-	mutex      *sync.Mutex
-	message    *skiplist.SkipList
-	conn       map[*websocket.Conn]bool
-	Token      string
-	Expire     int64
-	MaxMessage int
-	Key        string
-}
-
 var (
 	chMutex = &sync.Mutex{}
 	channel = map[string]*Subscriber{}
+    ErrMaxConn = errors.New("Exceed the max subscriber connection per key")
 )
 
 func fetchChannel(key string) *Subscriber {
@@ -61,6 +53,16 @@ func fetchChannel(key string) *Subscriber {
 	}
 
 	return s
+}
+
+type Subscriber struct {
+	mutex      *sync.Mutex
+	message    *skiplist.SkipList
+	conn       map[*websocket.Conn]bool
+	Token      string
+	Expire     int64
+	MaxMessage int
+	Key        string
 }
 
 func NewSubscriber() *Subscriber {
@@ -115,12 +117,18 @@ func (s *Subscriber) Message(mid int64) ([]string, []int64) {
 	return msgs, scores
 }
 
-func (s *Subscriber) AddConn(ws *websocket.Conn) {
+func (s *Subscriber) AddConn(ws *websocket.Conn) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+    if len(s.conn) + 1 > Conf.MaxSubscriberPerKey {
+        return ErrMaxConn
+    }
+
 	Log.Printf("add websocket.Conn to %s", s.Key)
 	s.conn[ws] = true
+
+    return nil
 }
 
 func (s *Subscriber) RemoveConn(ws *websocket.Conn) {
@@ -216,12 +224,8 @@ func Subscribe(ws *websocket.Conn) {
 	subKey := params.Get("key")
 	//TODO auth
 	// get lastest message id
-	midStr := ""
-	if err := websocket.Message.Receive(ws, &midStr); err != nil {
-		Log.Printf("websocket.Message.Receive() failed (%s)", err.Error())
-		return
-	}
 
+	midStr := params.Get("mid")
 	mid, err := strconv.ParseInt(midStr, 10, 64)
 	if err != nil {
 		Log.Printf("argument error (%s)", err.Error())
@@ -232,7 +236,11 @@ func Subscribe(ws *websocket.Conn) {
 	// fetch subscriber from the channel
 	sub := fetchChannel(subKey)
 	// add a conn to the subscriber
-	sub.AddConn(ws)
+	if err := sub.AddConn(ws); err != nil {
+        Log.Printf("sub.AddConn failed (%s)", err.Error())
+        return
+    }
+
 	// remove exists conn
 	defer sub.RemoveConn(ws)
 	// send stored message
@@ -241,7 +249,7 @@ func Subscribe(ws *websocket.Conn) {
 		for i := 0; i < len(msgs); i++ {
 			msg := msgs[i]
 			score := scores[i]
-			if err := retWrite(ws, msg, score); err != nil {
+			if err = retWrite(ws, msg, score); err != nil {
 				// remove exists conn
 				// delete(s.conn, ws)
 				Log.Printf("retWrite() failed (%s)", err.Error())
@@ -252,7 +260,7 @@ func Subscribe(ws *websocket.Conn) {
 
 	// blocking untill someone pub the key
 	reply := ""
-	if err := websocket.Message.Receive(ws, &reply); err != nil {
+	if err = websocket.Message.Receive(ws, &reply); err != nil {
 		Log.Printf("websocket.Message.Receive() failed (%s)", err.Error())
 	}
 
