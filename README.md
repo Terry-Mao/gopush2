@@ -1,23 +1,46 @@
 ## Terry-Mao/gopush2
-`Terry-Mao/gopush` is an push server written by golang. (websocket)
+`Terry-Mao/gopush2` is an push server written by golang. (websocket)
+
+---------------------------------------
+  * [Features](#features)
+  * [Requirements](#requirements)
+  * [Installation](#installation)
+  * [Usage](#usage)
+  * [Protocol](#protocol)
+  * [Testing / Development](#testing--development)
+  * [Documention](#documention)
+
+---------------------------------------
+
+
+## Features
+ * Lightweight
+ * Native Go implemention
+ * Channel expiration
+ * Single message expiration
+ * Store the offline message
+ * Restrict the subscribers per key
+ * Performance Profile
 
 ## Requeriments
+ * Go 1.1 or higher
+ * Golang websocket
+
 ```sh
-# all platform
 # websocket
 $ go get code.google.com/p/go.net/websocket 
 ```
 
-## Installation && Update
-Just pull `Terry-Mao/gopush` from github using `go get`:
+## Installation
+Just pull `Terry-Mao/gopush2` from github using `go get`:
 
 ```sh
-$ go get -u github.com/Terry-Mao/gopush
+$ go get -u github.com/Terry-Mao/gopush2
 ```
 
 ## Usage
 ```sh
-# start the gopush server
+# start the gopush2 server
 $ ./gopush2 -c ./gopush2.conf
 
 # 1. open http://localhost:8080/client in browser and press the Send button (modify the gopush2.conf, set debug to 1)
@@ -25,69 +48,12 @@ $ ./gopush2 -c ./gopush2.conf
 $ curl -d "test" http://localhost:8080/pub?key=Terry-Mao\&expire=30
 # then your browser will alert the "message"
 ```
-a simple java client example
-```java
-import java.io.IOException;
-import java.util.concurrent.ExecutionException;
-
-import com.ning.http.client.*;
-import com.ning.http.client.websocket.*;
-
-public class test {
-
-	/**
-	 * @param args
-	 * @throws IOException
-	 * @throws ExecutionException
-	 * @throws InterruptedException
-	 */
-	public static void main(String[] args) throws InterruptedException,
-			ExecutionException, IOException {
-
-		AsyncHttpClient c = new AsyncHttpClient();
-
-		WebSocket websocket = c
-				.prepareGet("ws://10.33.30.66:8080/sub?key=Terry-Mao&mid=0")
-				.execute(
-						new WebSocketUpgradeHandler.Builder()
-								.addWebSocketListener(
-										new WebSocketTextListener() {
-
-											@Override
-											public void onMessage(String message) {
-												System.out.println(message);
-											}
-
-											@Override
-											public void onOpen(
-													WebSocket websocket) {
-												System.out.println("ok");
-											}
-
-											public void onClose(
-													WebSocket websocket) {
-											}
-
-											@Override
-											public void onError(Throwable t) {
-											}
-
-											@Override
-											public void onFragment(String arg0,
-													boolean arg1) {
-												// TODO Auto-generated method
-												// stub
-
-											}
-										}).build()).get();
-
-		Thread.sleep(100000000);
-	}
-}
-
+a simple javascript examples
+```javascript
 ```
 
 ## Protocol
+
 response json field:
 ### msg
 * the publish message
@@ -102,6 +68,10 @@ the reponse json examples:
     "msg_id" : 1
 }
 ```
+
+## Development
+`Terry-Mao/gopush2` is not feature-complete yet. Your help is very appreciated.
+If you want to contribute, you can work on an [open issue](https://github.com/Terry-Mao/gopush2/issues?state=open) or review a [pull request](https://github.com/Terry-Mao/gopush2/pulls).
 
 ## Documentation
 Read the `Terry-Mao/gopush2` documentation from a terminal
