@@ -22,7 +22,7 @@
  * Restrict the subscribers per key
  * Performance Profile
 
-## Requeriments
+## Requirements
  * Go 1.1 or higher
  * Golang websocket
 
