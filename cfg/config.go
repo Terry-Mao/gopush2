@@ -24,13 +24,9 @@ type Config struct {
 	PprofPort           int    `json:"pprof_port"`
 	PubAddr             string `json:"pub_addr"`
 	PubPort             int    `json:"pub_port"`
-	LongpollingTimeout  int    `json:"longpolling_timeout"`
-	MessageExpireSec    int    `json:"message_expire_sec"`
 	Log                 string `json:"log"`
-	RedisNetwork        string `json:"redis_network"`
-	RedisAddr           string `json:"redis_addr"`
-	RedisTimeout        int    `json:"redis_timeout"`
-	RedisPoolSize       int    `json:"redis_poolsize"`
+	MessageExpireSec    int    `json:"message_expire_sec"`
+    ChannelExpireSec    int    `json:"channel_expire_sec"`
 	MaxStoredMessage    int    `json:"max_stored_message"`
 	MaxProcs            int    `json:"max_procs"`
 	MaxSubscriberPerKey int    `json:"max_subscriber_per_key"`
@@ -53,13 +49,9 @@ func New(file string) (*Config, error) {
 		PubAddr:             "localhost",
 		PubPort:             8080,
 		Pprof:               1,
-		LongpollingTimeout:  300,
-		MessageExpireSec:    7200,
+		MessageExpireSec:    10800, // 3 hour
+        ChannelExpireSec:    604800, // 24 * 7 hour
 		Log:                 "./gopush.log",
-		RedisNetwork:        "tcp",
-		RedisAddr:           "localhost:6379",
-		RedisTimeout:        28800,
-		RedisPoolSize:       50,
 		MaxStoredMessage:    20,
 		MaxSubscriberPerKey: 0, // no limit
 		MaxProcs:            runtime.NumCPU(),

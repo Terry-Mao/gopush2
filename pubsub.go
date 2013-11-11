@@ -45,12 +45,28 @@ func AddChannel(key string) *Subscriber {
 	return s
 }
 
+func RefreshChannel(key string) *Subscriber {
+	var (
+		s  *Subscriber
+	)
+
+	chMutex.Lock()
+	defer chMutex.Unlock()
+
+    // let GC free the old Subscriber
+    s = NewSubscriber()
+    channel[key] = s
+    s.Key = key
+
+	return s
+}
+
 func NewSubscriber() *Subscriber {
 	sub := &Subscriber{}
 	sub.mutex = &sync.Mutex{}
 	sub.message = skiplist.New()
 	sub.conn = map[*websocket.Conn]bool{}
-	sub.Expire = time.Now().UnixNano() + int64(Conf.MessageExpireSec)*1000
+	sub.Expire = time.Now().UnixNano() + int64(Conf.ChannelExpireSec)*1000
 	sub.MaxMessage = Conf.MaxStoredMessage
 
 	return sub
@@ -167,15 +183,19 @@ func Publish(w http.ResponseWriter, r *http.Request) {
         return
 	}
 
+    now := time.Now().UnixNano()
 	params := r.URL.Query()
 	key := params.Get("key")
 	//TODO auth
+    // get the expired sec
 	expireStr := params.Get("expire")
 	expire, err := strconv.ParseInt(expireStr, 10, 64)
 	if err != nil {
-		http.Error(w, "query parameter expire error", 405)
-        return
-	}
+        // use default setting
+	    expire = time.Now().UnixNano() + int64(Conf.MessageExpireSec)*1000
+	} else {
+        expire = expire * 1000
+    }
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -183,9 +203,15 @@ func Publish(w http.ResponseWriter, r *http.Request) {
         return
 	}
 
-	// get subscriber
+    // add a channel
 	sub := AddChannel(key)
-	sub.AddMessage(string(body), expire*1000)
+    // check expired
+    if now >= sub.Expire {
+        sub = RefreshChannel(key)
+        Log.Printf("device %s drop the expired channel, refresh a new one", key)
+    }
+
+	sub.AddMessage(string(body), expire)
 
 	return
 }
