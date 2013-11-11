@@ -6,6 +6,7 @@
   * [Requirements](#requirements)
   * [Installation](#installation)
   * [Usage](#usage)
+  * [Configuration](#configuration)
   * [Protocol](#protocol)
   * [Development](#development)
   * [Documention](#documentation)
@@ -42,7 +43,7 @@ $ go get -u github.com/Terry-Mao/gopush2
 ## Usage
 ```sh
 # start the gopush2 server
-$ ./gopush2 -c ./gopush2.conf
+$ nohup ./gopush2 -c ./gopush2.conf 2>&1 >> ./panic.log &
 
 # 1. open http://localhost:8080/client in browser and press the Send button (modify the gopush2.conf, set debug to 1)
 # 2. you can use curl
@@ -51,6 +52,27 @@ $ curl -d "test" http://localhost:8080/pub?key=Terry-Mao\&expire=30
 ```
 a simple javascript examples
 ```javascript
+```
+
+## Configuration
+```json
+{
+  "addr": "127.0.0.1", // the subscriber listen address
+  "port": 8080, // the subscriber listen port
+  "pprof_addr": "127.0.0.1", // the performance profile listen address
+  "pprof_port": 8080, // the performance profile listen port
+  "pub_addr": "127.0.0.1", // the publisher listen address
+  "pub_port": 8080, // the publisher listen address
+  "pprof": 1, // the performance profile flag (1: open, 0: close)
+  "log": "/tmp/gopush.log", // the gopush2 log file path
+  "message_expire_sec": 7200, // the default message expire second
+  "channel_expire_sec": 60, // the default channel expire second
+  "max_stored_message": 20, // the max stored message for a subscriber
+  "max_procs": 4, // the service used cpu cores
+  "max_subscriber_per_key": 1, // the max subscriber per key
+  "tcp_keepalive": 1, // use SO_KEEPALIVE, for lost tcp connection fast detection (1: open, 0: close)
+  "debug": 1 // use test client, http://xx:xx/client (1: open, 0: close)
+}
 ```
 
 ## Protocol
