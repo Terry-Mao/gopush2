@@ -7,7 +7,7 @@
   * [Installation](#installation)
   * [Usage](#usage)
   * [Protocol](#protocol)
-  * [Testing / Development](#testing--development)
+  * [Testing / Development](#development)
   * [Documention](#documention)
 
 ---------------------------------------
