@@ -16,9 +16,10 @@
 ## Features
  * Lightweight
  * Native Go implemention
- * Channel expiration
- * Single message expiration
+ * Lazy channel expiration
+ * Lazy single message expiration
  * Store the offline message
+ * Multiple subscribers
  * Restrict the subscribers per key
  * Performance Profile
 
