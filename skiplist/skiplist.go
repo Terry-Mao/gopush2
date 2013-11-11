@@ -6,7 +6,6 @@ import (
 )
 
 const (
-	MaxInt64          = 2 ^ 64 - 1
 	MaxNumberOfLevels = 16
 	MaxLevel          = MaxNumberOfLevels - 1
 	BitsInRandom      = 31
@@ -20,14 +19,15 @@ var (
 type Node struct {
 	Score   int64
 	Member  string
+	Expire  int64
 	level   int
 	forward []*Node
 }
 
 type SkipList struct {
-	Level   int
-	Length  int
-	Head    *Node
+	Level  int
+	Length int
+	Head   *Node
 }
 
 func randomLevel() int {
@@ -42,7 +42,7 @@ func randomLevel() int {
 			level = level + 1
 		}
 
-        randomBits = randomBits>>2
+		randomBits = randomBits >> 2
 		if randomsLeft = randomsLeft - 1; randomsLeft == 0 {
 			randomBits = rand.Int()
 			randomsLeft = BitsInRandom / 2
@@ -57,13 +57,13 @@ func randomLevel() int {
 }
 
 func newNode(level int) *Node {
-	return &Node{level: level, forward: make([]*Node, level + 1)}
+	return &Node{level: level, forward: make([]*Node, level+1)}
 }
 
 func New() *SkipList {
 	sl := &SkipList{}
 	sl.Level = 0
-    sl.Length = 0
+	sl.Length = 0
 	sl.Head = newNode(MaxNumberOfLevels)
 
 	// init the head node and point to the nil
@@ -114,7 +114,7 @@ func (sl *SkipList) Greate(score int64) *Node {
 	return nil
 }
 
-func (sl *SkipList) Insert(score int64, member string) error {
+func (sl *SkipList) Insert(score int64, member string, expire int64) error {
 	var q *Node
 	p := sl.Head
 	update := make([]*Node, MaxNumberOfLevels)
@@ -146,6 +146,7 @@ func (sl *SkipList) Insert(score int64, member string) error {
 	q = newNode(level)
 	q.Member = member
 	q.Score = score
+	q.Expire = expire
 
 	// every level index add the new node
 	for i := level; i >= 0; i-- {
@@ -158,7 +159,7 @@ func (sl *SkipList) Insert(score int64, member string) error {
 	return nil
 }
 
-func (sl *SkipList) Update(score int64, member string) {
+func (sl *SkipList) Update(score int64, member string, expire int64) {
 	var q *Node
 	p := sl.Head
 	update := make([]*Node, MaxNumberOfLevels)
@@ -175,6 +176,7 @@ func (sl *SkipList) Update(score int64, member string) {
 	// node exists
 	if q != nil && q.Score == score {
 		q.Member = member
+		q.Expire = expire
 		return
 	}
 
@@ -207,7 +209,7 @@ func (sl *SkipList) Delete(score int64) error {
 	p := sl.Head
 	update := make([]*Node, MaxNumberOfLevels)
 
-    // every index find the first greate score node
+	// every index find the first greate score node
 	for i := sl.Level; i >= 0; i-- {
 		for q = p.forward[i]; q != nil && q.Score < score; q = p.forward[i] {
 			p = q
@@ -218,22 +220,22 @@ func (sl *SkipList) Delete(score int64) error {
 
 	// found the node
 	if q != nil && q.Score == score {
-        // update every index's forward (the exists node has deleted)
+		// update every index's forward (the exists node has deleted)
 		for i := 0; i <= sl.Level; i++ {
-            p = update[i]
-            if q == p.forward[i] {
-			    p.forward[i] = q.forward[i]
-            }
+			p = update[i]
+			if q == p.forward[i] {
+				p.forward[i] = q.forward[i]
+			}
 		}
 
-        // every index may delete the last node, so recalc the skiplist's level
+		// every index may delete the last node, so recalc the skiplist's level
 		j := sl.Level
 		for sl.Head.forward[j] == nil && j > 0 {
-            j--
+			j--
 		}
 
 		sl.Level = j
-        sl.Length = sl.Length - 1
+		sl.Length = sl.Length - 1
 		return nil
 	}
 
@@ -241,9 +243,9 @@ func (sl *SkipList) Delete(score int64) error {
 }
 
 func (n *Node) Next() *Node {
-    if p := n.forward[0]; p != nil {
-        return p
-    }
+	if p := n.forward[0]; p != nil {
+		return p
+	}
 
-    return nil
+	return nil
 }
