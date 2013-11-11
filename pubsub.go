@@ -12,6 +12,10 @@ import (
 	"time"
 )
 
+const (
+	Second = int64(time.Second)
+)
+
 type Subscriber struct {
 	mutex      *sync.Mutex
 	message    *skiplist.SkipList
@@ -19,7 +23,7 @@ type Subscriber struct {
 	Token      string
 	Expire     int64
 	MaxMessage int
-    Key        string
+	Key        string
 }
 
 var (
@@ -27,49 +31,47 @@ var (
 	channel = map[string]*Subscriber{}
 )
 
-func AddChannel(key string) *Subscriber {
+func fetchChannel(key string) *Subscriber {
 	var (
-		s  *Subscriber
-		ok bool
+		s   *Subscriber
+		ok  bool
+		now = time.Now().UnixNano()
 	)
 
 	chMutex.Lock()
 	defer chMutex.Unlock()
 
 	if s, ok = channel[key]; !ok {
+		// not exists subscriber for the key
 		s = NewSubscriber()
 		channel[key] = s
-        s.Key = key
+		s.Key = key
+	} else {
+		// check expired
+		if now >= s.Expire {
+			// let gc free the old subscriber
+			Log.Printf("device %s drop the expired channel, refresh a new one now(%d) > expire(%d)", key, now, s.Expire)
+			s = NewSubscriber()
+			s.Key = key
+			channel[key] = s
+		} else {
+			// refresh the expire time
+			s.Expire = now + int64(Conf.ChannelExpireSec)*Second
+		}
 	}
 
 	return s
 }
 
-func RefreshChannel(key string) *Subscriber {
-	var (
-		s  *Subscriber
-	)
-
-	chMutex.Lock()
-	defer chMutex.Unlock()
-
-    // let GC free the old Subscriber
-    s = NewSubscriber()
-    channel[key] = s
-    s.Key = key
+func NewSubscriber() *Subscriber {
+	s := &Subscriber{}
+	s.mutex = &sync.Mutex{}
+	s.message = skiplist.New()
+	s.conn = map[*websocket.Conn]bool{}
+	s.Expire = time.Now().UnixNano() + int64(Conf.ChannelExpireSec)*Second
+	s.MaxMessage = Conf.MaxStoredMessage
 
 	return s
-}
-
-func NewSubscriber() *Subscriber {
-	sub := &Subscriber{}
-	sub.mutex = &sync.Mutex{}
-	sub.message = skiplist.New()
-	sub.conn = map[*websocket.Conn]bool{}
-	sub.Expire = time.Now().UnixNano() + int64(Conf.ChannelExpireSec)*1000
-	sub.MaxMessage = Conf.MaxStoredMessage
-
-	return sub
 }
 
 // get greate than mid's messages
@@ -107,7 +109,7 @@ func (s *Subscriber) Message(mid int64) ([]string, []int64) {
 	// delete the expired message
 	for _, score := range expired {
 		s.message.Delete(score)
-        Log.Printf("delete the expired message %d for device %s", score, s.Key)
+		Log.Printf("delete the expired message %d for device %s", score, s.Key)
 	}
 
 	return msgs, scores
@@ -117,7 +119,7 @@ func (s *Subscriber) AddConn(ws *websocket.Conn) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-    Log.Printf("add websocket.Conn to %s", s.Key)
+	Log.Printf("add websocket.Conn to %s", s.Key)
 	s.conn[ws] = true
 }
 
@@ -125,16 +127,16 @@ func (s *Subscriber) RemoveConn(ws *websocket.Conn) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-    Log.Printf("remove websocket.Conn to %s", s.Key)
+	Log.Printf("remove websocket.Conn to %s", s.Key)
 	delete(s.conn, ws)
 }
 
 func (s *Subscriber) AddMessage(msg string, expire int64) {
 	now := time.Now().UnixNano()
-    if now >= expire {
-        Log.Printf("message %s has already expired now(%d) >= expire(%d)", msg, now, expire)
-        return
-    }
+	if now >= expire {
+		Log.Printf("message %s has already expired now(%d) >= expire(%d)", msg, now, expire)
+		return
+	}
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -149,15 +151,14 @@ func (s *Subscriber) AddMessage(msg string, expire int64) {
 		}
 
 		s.message.Delete(n.Score)
-        Log.Printf("key %s exceed the maxmessage setting, trim the subscriber", s.Key)
+		Log.Printf("key %s exceed the maxmessage setting, trim the subscriber", s.Key)
 	}
 
 	for {
 		// if has exists node, sleep and retry
 		err := s.message.Insert(now, msg, expire)
 		if err != nil {
-			time.Sleep(1 * time.Nanosecond)
-			now = time.Now().UnixNano()
+			now++
 		}
 
 		break
@@ -171,7 +172,7 @@ func (s *Subscriber) AddMessage(msg string, expire int64) {
 			Log.Printf("retWrite() failed (%s)", err.Error())
 		}
 
-        Log.Printf("add message %s:%d to device %s", msg, now, s.Key)
+		Log.Printf("add message %s:%d to device %s", msg, now, s.Key)
 	}
 
 	return
@@ -180,37 +181,29 @@ func (s *Subscriber) AddMessage(msg string, expire int64) {
 func Publish(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Method Not Allowed", 405)
-        return
+		return
 	}
 
-    now := time.Now().UnixNano()
 	params := r.URL.Query()
 	key := params.Get("key")
 	//TODO auth
-    // get the expired sec
+	// get the expired sec
 	expireStr := params.Get("expire")
 	expire, err := strconv.ParseInt(expireStr, 10, 64)
 	if err != nil {
-        // use default setting
-	    expire = time.Now().UnixNano() + int64(Conf.MessageExpireSec)*1000
-	} else {
-        expire = expire * 1000
-    }
+		// use default setting
+		expire = int64(Conf.MessageExpireSec) * Second
+	}
 
+	expire = time.Now().UnixNano() + expire*Second
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "read body error", 500)
-        return
+		return
 	}
 
-    // add a channel
-	sub := AddChannel(key)
-    // check expired
-    if now >= sub.Expire {
-        sub = RefreshChannel(key)
-        Log.Printf("device %s drop the expired channel, refresh a new one", key)
-    }
-
+	// fetch subscriber from the channel
+	sub := fetchChannel(key)
 	sub.AddMessage(string(body), expire)
 
 	return
@@ -226,7 +219,7 @@ func Subscribe(ws *websocket.Conn) {
 	midStr := ""
 	if err := websocket.Message.Receive(ws, &midStr); err != nil {
 		Log.Printf("websocket.Message.Receive() failed (%s)", err.Error())
-        return
+		return
 	}
 
 	mid, err := strconv.ParseInt(midStr, 10, 64)
@@ -236,8 +229,8 @@ func Subscribe(ws *websocket.Conn) {
 	}
 
 	Log.Printf("client (%s) subscribe to key %s with mid = %s", ws.Request().RemoteAddr, subKey, midStr)
-	// get subscriber
-	sub := AddChannel(subKey)
+	// fetch subscriber from the channel
+	sub := fetchChannel(subKey)
 	// add a conn to the subscriber
 	sub.AddConn(ws)
 	// remove exists conn
