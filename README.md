@@ -76,7 +76,7 @@ a simple javascript examples
 ```
 
 ## Protocol
- 1. Sub the specified key "ws://localhost:port/sub?key=xxx&mid=$msg_id" use websocket (the $msg_id is stored is client, every time publish a message will return the msg_id, if client's $msg_id is nil then use current timestamp's nano)
+ 1. Sub the specified key "ws://localhost:port/sub?key=xxx&msg_id=$msg_id" use websocket (the $msg_id is stored is client, every time publish a message will return the msg_id, if client's $msg_id is nil then use current timestamp's nano)
  2. the subscriber then block, till a message published to the sub key
  3. post to http://localhost:port/pub?key=xxx&expire=30, the message write to http body (the url query field "expire" means message expired after 30 second)
  4. if any error, gopush2 close the socket, client need to retry connect

@@ -14,7 +14,7 @@ func Client(w http.ResponseWriter, r *http.Request) {
     <script type="text/javascript" src="http://img3.douban.com/js/packed_jquery.min6301986802.js" async="true"></script>
     <script type="text/javascript">
         var sock = null;
-        var wsuri = "ws://%s:%d/sub?key=Terry-Mao&mid=0";
+        var wsuri = "ws://%s:%d/sub?key=Terry-Mao&msg_id=0";
 
         window.onload = function() {
             try

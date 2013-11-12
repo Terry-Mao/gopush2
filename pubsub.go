@@ -173,14 +173,14 @@ func (s *Subscriber) RemoveConn(ws *websocket.Conn) {
 }
 
 func (s *Subscriber) AddMessage(msg string, expire int64) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	now := time.Now().UnixNano()
 	if now >= expire {
 		Log.Printf("message %s has already expired now(%d) >= expire(%d)", msg, now, expire)
 		return
 	}
-
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
 
 	// check exceed the max message length
 	if s.message.Length+1 > s.MaxMessage {
@@ -279,14 +279,14 @@ func Subscribe(ws *websocket.Conn) {
 	//TODO auth
 	// get lastest message id
 
-	midStr := params.Get("mid")
+	midStr := params.Get("msg_id")
 	mid, err := strconv.ParseInt(midStr, 10, 64)
 	if err != nil {
 		Log.Printf("argument error (%s)", err.Error())
 		return
 	}
 
-	Log.Printf("client (%s) subscribe to key %s with mid = %s", ws.Request().RemoteAddr, subKey, midStr)
+	Log.Printf("client (%s) subscribe to key %s with msg_id = %s", ws.Request().RemoteAddr, subKey, midStr)
 	// fetch subscriber from the channel
 	sub := subChannel(subKey)
 	// add a conn to the subscriber
