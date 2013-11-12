@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+const (
+	Second = int64(time.Second)
+)
+
 type Subscriber struct {
 	mutex      *sync.Mutex
 	message    *skiplist.SkipList
@@ -17,13 +21,14 @@ type Subscriber struct {
 	Key        string
 }
 
-func NewSubscriber() *Subscriber {
+func NewSubscriber(key string) *Subscriber {
 	s := &Subscriber{}
 	s.mutex = &sync.Mutex{}
 	s.message = skiplist.New()
 	s.conn = map[*websocket.Conn]bool{}
 	s.Expire = time.Now().UnixNano() + Conf.ChannelExpireSec*Second
 	s.MaxMessage = Conf.MaxStoredMessage
+	s.Key = key
 
 	return s
 }

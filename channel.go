@@ -5,10 +5,6 @@ import (
 	"time"
 )
 
-const (
-	Second = int64(time.Second)
-)
-
 type Channel struct {
 	did   map[string]*Subscriber
 	mutex *sync.Mutex
@@ -35,9 +31,8 @@ func (c *Channel) GetSubscriber(key string) *Subscriber {
 
 	if s, ok = c.did[key]; !ok {
 		// not exists subscriber for the key
-		s = NewSubscriber()
+		s = NewSubscriber(key)
 		c.did[key] = s
-		s.Key = key
 	} else {
 		// check expired
 		if now >= s.Expire {
@@ -45,8 +40,7 @@ func (c *Channel) GetSubscriber(key string) *Subscriber {
 			// remove old sub conn
 			Log.Printf("device %s drop the expired channel, refresh a new one now(%d) > expire(%d)", key, now, s.Expire)
 			s.CloseAllConn()
-			s = NewSubscriber()
-			s.Key = key
+			s = NewSubscriber(key)
 			c.did[key] = s
 		} else {
 			// refresh the expire time
