@@ -25,8 +25,8 @@ type Config struct {
 	PubAddr             string `json:"pub_addr"`
 	PubPort             int    `json:"pub_port"`
 	Log                 string `json:"log"`
-	MessageExpireSec    int    `json:"message_expire_sec"`
-	ChannelExpireSec    int    `json:"channel_expire_sec"`
+	MessageExpireSec    int64  `json:"message_expire_sec"`
+	ChannelExpireSec    int64  `json:"channel_expire_sec"`
 	MaxStoredMessage    int    `json:"max_stored_message"`
 	MaxProcs            int    `json:"max_procs"`
 	MaxSubscriberPerKey int    `json:"max_subscriber_per_key"`

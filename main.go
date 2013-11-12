@@ -54,6 +54,8 @@ func main() {
 		http.HandleFunc("/client", Client)
 	}
 
+	// create channel
+	channel = NewChannel()
 	Log.Printf("gopush2 service start.")
 	// pprof
 	if Conf.Pprof == 1 {
