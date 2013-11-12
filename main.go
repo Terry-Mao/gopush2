@@ -7,7 +7,6 @@ import (
 	"github.com/Terry-Mao/gopush2/cfg"
 	"log"
 	"net/http"
-	"net/http/pprof"
 	"os"
 	"runtime"
 )
@@ -24,6 +23,8 @@ func init() {
 func main() {
 	var err error
 
+	// start stats
+	StartStats()
 	// parse cmd-line arguments
 	flag.Parse()
 	// init config
@@ -57,35 +58,23 @@ func main() {
 	// create channel
 	channel = NewChannel()
 	Log.Printf("gopush2 service start.")
-	// pprof
-	if Conf.Pprof == 1 {
-		if Conf.PprofAddr != Conf.Addr || Conf.PprofPort != Conf.Port {
-			go func() {
-				profServeMux := http.NewServeMux()
-				profServeMux.HandleFunc("/debug/pprof/", pprof.Index)
-				profServeMux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-				profServeMux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-				profServeMux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-				err := http.ListenAndServe(fmt.Sprintf("%s:%d", Conf.PprofAddr, Conf.PprofPort), profServeMux)
-				if err != nil {
-					panic(err)
-				}
-			}()
-		}
-	}
 
-	// publish
-	if Conf.PubAddr != Conf.Addr || Conf.PubPort != Conf.Port {
+	// admin
+	if Conf.AdminAddr != Conf.Addr || Conf.AdminPort != Conf.Port {
 		go func() {
-			pubServeMux := http.NewServeMux()
-			pubServeMux.HandleFunc("/pub", Publish)
-			err := http.ListenAndServe(fmt.Sprintf("%s:%d", Conf.PubAddr, Conf.PubPort), pubServeMux)
+			adminServeMux := http.NewServeMux()
+			// publish
+			adminServeMux.HandleFunc("/pub", Publish)
+			// stat
+			adminServeMux.HandleFunc("/stat", Stat)
+			err := http.ListenAndServe(fmt.Sprintf("%s:%d", Conf.AdminAddr, Conf.AdminPort), adminServeMux)
 			if err != nil {
 				panic(err)
 			}
 		}()
 	} else {
 		http.HandleFunc("/pub", Publish)
+		http.HandleFunc("/stat", Stat)
 	}
 
 	// start listen and pending here

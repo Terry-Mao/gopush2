@@ -22,7 +22,7 @@
  * Store the offline message
  * Multiple subscribers
  * Restrict the subscribers per key
- * Performance Profile
+ * Stats
 
 ## Requirements
  * Go 1.1 or higher
@@ -49,6 +49,7 @@ $ nohup ./gopush2 -c ./gopush2.conf 2>&1 >> ./panic.log &
 # 2. you can use curl
 $ curl -d "test" http://localhost:8080/pub?key=Terry-Mao\&expire=30
 # then your browser will alert the "message"
+# open http://localhost:8080/stat?type=memory in browser to get memstats(type: memory, server, channel, subscriber, golang, config)
 ```
 a simple javascript examples
 ```javascript
@@ -59,11 +60,8 @@ a simple javascript examples
 {
   "addr": "127.0.0.1", # the subscriber listen address
   "port": 8080, # the subscriber listen port
-  "pprof_addr": "127.0.0.1", # the performance profile listen address
-  "pprof_port": 8080, # the performance profile listen port
-  "pub_addr": "127.0.0.1", # the publisher listen address
-  "pub_port": 8080, # the publisher listen address
-  "pprof": 1, # the performance profile flag (1: open, 0: close)
+  "admin_addr": "127.0.0.1", # for the publisher and stat listen address
+  "admin_port": 8080, # for the publisher and stat listen port
   "log": "/tmp/gopush.log", # the gopush2 log file path
   "message_expire_sec": 7200, # the default message expire second
   "channel_expire_sec": 60, # the default channel expire second

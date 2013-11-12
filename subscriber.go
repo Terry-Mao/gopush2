@@ -2,13 +2,20 @@ package main
 
 import (
 	"code.google.com/p/go.net/websocket"
+	"encoding/json"
 	"github.com/Terry-Mao/gopush2/skiplist"
 	"sync"
 	"time"
+    "errors"
 )
 
 const (
 	Second = int64(time.Second)
+)
+
+var (
+	ErrMaxConn = errors.New("Exceed the max subscriber connection per key")
+	ErrExpired = errors.New("Channel expired")
 )
 
 type Subscriber struct {
@@ -21,6 +28,7 @@ type Subscriber struct {
 	Key        string
 }
 
+// new a subscriber
 func NewSubscriber(key string) *Subscriber {
 	s := &Subscriber{}
 	s.mutex = &sync.Mutex{}
@@ -30,54 +38,48 @@ func NewSubscriber(key string) *Subscriber {
 	s.MaxMessage = Conf.MaxStoredMessage
 	s.Key = key
 
+	subscriberStats.IncrCreated()
 	return s
 }
 
-// get greate than mid's messages
-func (s *Subscriber) Message(mid int64) ([]string, []int64) {
+// send mssage after mid
+func (s *Subscriber) SendStoredMessage(ws *websocket.Conn, mid int64) error {
 	now := time.Now().UnixNano()
-	msgs := []string{}
-	scores := []int64{}
 	expired := []int64{}
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	n := s.message.Greate(mid)
-	if n == nil {
-		return nil, nil
-	}
+	defer func() {
+		// delete the expired message
+		for _, score := range expired {
+			s.message.Delete(score)
+			Log.Printf("delete the expired message %d for device %s", score, s.Key)
+			subscriberStats.IncrExpiredMessage()
+		}
+	}()
 
-	// check expired
-	if n.Expire >= now {
-		msgs = append(msgs, n.Member)
-		scores = append(scores, n.Score)
-	} else {
-		expired = append(expired, n.Score)
-	}
-
-	for n = n.Next(); n != nil; n = n.Next() {
+	for n := s.message.Greate(mid); n != nil; n = n.Next() {
 		// the next node may expired, recheck
 		if n.Expire >= now {
-			msgs = append(msgs, n.Member)
-			scores = append(scores, n.Score)
+			if err := subRetWrite(ws, n.Member, n.Score); err != nil {
+				Log.Printf("subRetWrite() failed (%s)", err.Error())
+				return err
+			}
+
+			subscriberStats.IncrSentMessage()
 		} else {
 			expired = append(expired, n.Score)
 		}
 	}
 
-	// delete the expired message
-	for _, score := range expired {
-		s.message.Delete(score)
-		Log.Printf("delete the expired message %d for device %s", score, s.Key)
-	}
-
-	return msgs, scores
+	return nil
 }
 
+// add a connection
 func (s *Subscriber) AddConn(ws *websocket.Conn) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-
+	subscriberStats.IncrConn()
 	if len(s.conn)+1 > Conf.MaxSubscriberPerKey {
 		return ErrMaxConn
 	}
@@ -88,14 +90,17 @@ func (s *Subscriber) AddConn(ws *websocket.Conn) error {
 	return nil
 }
 
+// remove a connection
 func (s *Subscriber) RemoveConn(ws *websocket.Conn) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	Log.Printf("remove websocket.Conn to %s", s.Key)
 	delete(s.conn, ws)
+	subscriberStats.DecrConn()
 }
 
+// close and remove all the connections
 func (s *Subscriber) CloseAllConn() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -107,15 +112,19 @@ func (s *Subscriber) CloseAllConn() {
 		}
 
 		delete(s.conn, ws)
+		subscriberStats.DecrConn()
 	}
 }
 
+// publish message to the subscriber
 func (s *Subscriber) AddMessage(msg string, expire int64) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	subscriberStats.IncrAddedMessage()
 	now := time.Now().UnixNano()
 	if now >= expire {
+		subscriberStats.IncrExpiredMessage()
 		Log.Printf("message %s has already expired now(%d) >= expire(%d)", msg, now, expire)
 		return
 	}
@@ -131,6 +140,7 @@ func (s *Subscriber) AddMessage(msg string, expire int64) {
 
 		s.message.Delete(n.Score)
 		Log.Printf("key %s:%d exceed the max_message setting, trim the subscriber", s.Key, n.Score)
+		subscriberStats.IncrDeletedMessage()
 	}
 
 	for {
@@ -152,7 +162,29 @@ func (s *Subscriber) AddMessage(msg string, expire int64) {
 		}
 
 		Log.Printf("add message %s:%d to device %s", msg, now, s.Key)
+		subscriberStats.IncrSentMessage()
 	}
 
 	return
+}
+
+func subRetWrite(ws *websocket.Conn, msg string, msgID int64) error {
+	res := map[string]interface{}{}
+	res["msg"] = msg
+	res["msg_id"] = msgID
+
+	strJson, err := json.Marshal(res)
+	if err != nil {
+		Log.Printf("json.Marshal(\"%v\") failed", res)
+		return err
+	}
+
+	respJson := string(strJson)
+	Log.Printf("sub send to client: %s", respJson)
+	if _, err := ws.Write(strJson); err != nil {
+		Log.Printf("ws.Write(\"%s\") failed (%s)", respJson, err.Error())
+		return err
+	}
+
+	return nil
 }

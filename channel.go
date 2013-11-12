@@ -33,6 +33,7 @@ func (c *Channel) GetSubscriber(key string) *Subscriber {
 		// not exists subscriber for the key
 		s = NewSubscriber(key)
 		c.did[key] = s
+		channelStats.IncrCreated()
 	} else {
 		// check expired
 		if now >= s.Expire {
@@ -42,11 +43,17 @@ func (c *Channel) GetSubscriber(key string) *Subscriber {
 			s.CloseAllConn()
 			s = NewSubscriber(key)
 			c.did[key] = s
+			subscriberStats.IncrCreated()
 		} else {
 			// refresh the expire time
 			s.Expire = now + Conf.ChannelExpireSec*Second
+			channelStats.IncrRefreshed()
 		}
 	}
 
 	return s
+}
+
+func (c *Channel) NumDID() int {
+	return len(c.did)
 }

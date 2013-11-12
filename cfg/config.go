@@ -19,11 +19,9 @@ func init() {
 type Config struct {
 	Addr                string `json:"addr"`
 	Port                int    `json:"port"`
-	Pprof               int    `json:"pprof"`
-	PprofAddr           string `json:"pprof_addr"`
-	PprofPort           int    `json:"pprof_port"`
-	PubAddr             string `json:"pub_addr"`
-	PubPort             int    `json:"pub_port"`
+	//Pprof               int    `json:"pprof"`
+	AdminAddr           string `json:"admin_addr"`
+	AdminPort           int    `json:"admin_port"`
 	Log                 string `json:"log"`
 	MessageExpireSec    int64  `json:"message_expire_sec"`
 	ChannelExpireSec    int64  `json:"channel_expire_sec"`
@@ -44,11 +42,9 @@ func New(file string) (*Config, error) {
 	cf := &Config{
 		Addr:                "localhost",
 		Port:                8080,
-		PprofAddr:           "localhost",
-		PprofPort:           8080,
-		PubAddr:             "localhost",
-		PubPort:             8080,
-		Pprof:               1,
+		AdminAddr:           "localhost",
+		AdminPort:           8080,
+		//Pprof:               1,
 		MessageExpireSec:    10800,  // 3 hour
 		ChannelExpireSec:    604800, // 24 * 7 hour
 		Log:                 "./gopush.log",

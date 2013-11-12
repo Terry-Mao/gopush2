@@ -3,7 +3,6 @@ package main
 import (
 	"code.google.com/p/go.net/websocket"
 	"encoding/json"
-	"errors"
 	"io/ioutil"
 	"net/http"
 	"runtime/debug"
@@ -18,9 +17,7 @@ const (
 )
 
 var (
-	ErrMaxConn = errors.New("Exceed the max subscriber connection per key")
-	ErrExpired = errors.New("Channel expired")
-	channel    *Channel
+	channel *Channel
 )
 
 func Publish(w http.ResponseWriter, r *http.Request) {
@@ -92,7 +89,7 @@ func Subscribe(ws *websocket.Conn) {
 	}
 
 	// add a conn to the subscriber
-	if err := sub.AddConn(ws); err != nil {
+	if err = sub.AddConn(ws); err != nil {
 		Log.Printf("sub.AddConn failed (%s)", err.Error())
 		return
 	}
@@ -100,18 +97,9 @@ func Subscribe(ws *websocket.Conn) {
 	// remove exists conn
 	defer sub.RemoveConn(ws)
 	// send stored message
-	msgs, scores := sub.Message(mid)
-	if msgs != nil && scores != nil {
-		for i := 0; i < len(msgs); i++ {
-			msg := msgs[i]
-			score := scores[i]
-			if err = subRetWrite(ws, msg, score); err != nil {
-				// remove exists conn
-				// delete(s.conn, ws)
-				Log.Printf("subRetWrite() failed (%s)", err.Error())
-				return
-			}
-		}
+	if err = sub.SendStoredMessage(ws, mid); err != nil {
+		Log.Printf("sub.SendStoredMessage() failed (%s)", err.Error())
+		return
 	}
 
 	// blocking untill someone pub the key
@@ -138,27 +126,6 @@ func pubRetWrite(w http.ResponseWriter, msg string, ret int) error {
 	Log.Printf("pub send to client: %s", respJson)
 	if _, err := w.Write(strJson); err != nil {
 		Log.Printf("w.Write(\"%s\") failed (%s)", respJson, err.Error())
-		return err
-	}
-
-	return nil
-}
-
-func subRetWrite(ws *websocket.Conn, msg string, msgID int64) error {
-	res := map[string]interface{}{}
-	res["msg"] = msg
-	res["msg_id"] = msgID
-
-	strJson, err := json.Marshal(res)
-	if err != nil {
-		Log.Printf("json.Marshal(\"%v\") failed", res)
-		return err
-	}
-
-	respJson := string(strJson)
-	Log.Printf("sub send to client: %s", respJson)
-	if _, err := ws.Write(strJson); err != nil {
-		Log.Printf("ws.Write(\"%s\") failed (%s)", respJson, err.Error())
 		return err
 	}
 
