@@ -43,7 +43,7 @@ func (c *Channel) GetSubscriber(key string) *Subscriber {
 			s.CloseAllConn()
 			s = NewSubscriber(key)
 			c.did[key] = s
-			subscriberStats.IncrCreated()
+			channelStats.IncrExpired()
 		} else {
 			// refresh the expire time
 			s.Expire = now + Conf.ChannelExpireSec*Second

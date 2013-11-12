@@ -3,10 +3,10 @@ package main
 import (
 	"code.google.com/p/go.net/websocket"
 	"encoding/json"
+	"errors"
 	"github.com/Terry-Mao/gopush2/skiplist"
 	"sync"
 	"time"
-    "errors"
 )
 
 const (

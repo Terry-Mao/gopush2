@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/user"
 	"runtime"
-	"sync/atomic"
 	"time"
 )
 
@@ -35,24 +34,25 @@ var (
 	subscriberStats = &SubscriberStats{}
 )
 
-// atomic increment channel created number
+// increment channel created number
 func (c *ChannelStats) IncrCreated() {
-	atomic.AddInt64(&c.Created, 1)
+	c.Created++
 }
 
-// atomic increment channel expired number
+// increment channel expired number
 func (c *ChannelStats) IncrExpired() {
-	atomic.AddInt64(&c.Expired, 1)
+	c.Expired++
+
 }
 
-// atomic increment channel refreshed number
+// increment channel refreshed number
 func (c *ChannelStats) IncrRefreshed() {
-	atomic.AddInt64(&c.Refreshed, 1)
+	c.Refreshed++
 }
 
-// atomic increment subscriber created number
+// increment subscriber created number
 func (s *SubscriberStats) IncrCreated() {
-	atomic.AddInt64(&s.Created, 1)
+	s.Created++
 }
 
 // increment subscriber added message
@@ -93,6 +93,7 @@ func StartStats() {
 
 // memory stats
 func GetMemStats() []byte {
+	//TODO
 	m := &runtime.MemStats{}
 	runtime.ReadMemStats(m)
 
