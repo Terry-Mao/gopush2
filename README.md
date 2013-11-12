@@ -22,7 +22,7 @@
  * Store the offline message
  * Multiple subscribers
  * Restrict the subscribers per key
- * Stats
+ * Stats (Memory, Channel, Subscriber, Golang, Server)
 
 ## Requirements
  * Go 1.1 or higher

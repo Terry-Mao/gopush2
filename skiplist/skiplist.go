@@ -17,17 +17,17 @@ var (
 )
 
 type Node struct {
-	Score   int64
-	Member  string
-	Expire  int64
-	level   int
-	forward []*Node
+	Score   int64 // key
+	Member  string // value
+	Expire  int64 // expired unixnano
+	level   int // node level
+	forward []*Node // forward index
 }
 
 type SkipList struct {
-	Level  int
-	Length int
-	Head   *Node
+	Level  int // max level
+	Length int // node length
+	Head   *Node // head node
 }
 
 func randomLevel() int {
@@ -60,6 +60,7 @@ func newNode(level int) *Node {
 	return &Node{level: level, forward: make([]*Node, level+1)}
 }
 
+// create a a new SkipList
 func New() *SkipList {
 	sl := &SkipList{}
 	sl.Level = 0
@@ -74,6 +75,7 @@ func New() *SkipList {
 	return sl
 }
 
+// search a node which equals score
 func (sl *SkipList) Equal(score int64) *Node {
 	var q *Node
 	p := sl.Head
@@ -94,6 +96,7 @@ func (sl *SkipList) Equal(score int64) *Node {
 	return q
 }
 
+// search a node which greate score
 func (sl *SkipList) Greate(score int64) *Node {
 	var q *Node
 	p := sl.Head
@@ -114,6 +117,7 @@ func (sl *SkipList) Greate(score int64) *Node {
 	return nil
 }
 
+// insert a node into skiplist
 func (sl *SkipList) Insert(score int64, member string, expire int64) error {
 	var q *Node
 	p := sl.Head
@@ -159,6 +163,7 @@ func (sl *SkipList) Insert(score int64, member string, expire int64) error {
 	return nil
 }
 
+// update a node in skiplist
 func (sl *SkipList) Update(score int64, member string, expire int64) {
 	var q *Node
 	p := sl.Head
@@ -204,6 +209,7 @@ func (sl *SkipList) Update(score int64, member string, expire int64) {
 	return
 }
 
+// delete a node search by score
 func (sl *SkipList) Delete(score int64) error {
 	var q *Node
 	p := sl.Head
@@ -242,6 +248,7 @@ func (sl *SkipList) Delete(score int64) error {
 	return ErrNodeNotExists
 }
 
+// skiplist node's Next node
 func (n *Node) Next() *Node {
 	if p := n.forward[0]; p != nil {
 		return p

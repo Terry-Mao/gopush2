@@ -54,7 +54,6 @@ func (s *Subscriber) SendStoredMessage(ws *websocket.Conn, mid int64) error {
 		for _, score := range expired {
 			s.message.Delete(score)
 			Log.Printf("delete the expired message %d for device %s", score, s.Key)
-			subscriberStats.IncrExpiredMessage()
 		}
 	}()
 
@@ -69,6 +68,7 @@ func (s *Subscriber) SendStoredMessage(ws *websocket.Conn, mid int64) error {
 			subscriberStats.IncrSentMessage()
 		} else {
 			expired = append(expired, n.Score)
+			subscriberStats.IncrExpiredMessage()
 		}
 	}
 
@@ -94,10 +94,11 @@ func (s *Subscriber) AddConn(ws *websocket.Conn) error {
 func (s *Subscriber) RemoveConn(ws *websocket.Conn) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-
+	subscriberStats.DecrConn()
 	Log.Printf("remove websocket.Conn to %s", s.Key)
 	delete(s.conn, ws)
-	subscriberStats.DecrConn()
+
+	return
 }
 
 // close and remove all the connections
@@ -114,13 +115,14 @@ func (s *Subscriber) CloseAllConn() {
 		delete(s.conn, ws)
 		subscriberStats.DecrConn()
 	}
+
+	return
 }
 
 // publish message to the subscriber
 func (s *Subscriber) AddMessage(msg string, expire int64) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-
 	subscriberStats.IncrAddedMessage()
 	now := time.Now().UnixNano()
 	if now >= expire {
