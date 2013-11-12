@@ -32,6 +32,7 @@ type Config struct {
 	Debug               int    `json:"debug"`
 }
 
+// get a config
 func New(file string) (*Config, error) {
 	c, err := ioutil.ReadFile(file)
 	if err != nil {
