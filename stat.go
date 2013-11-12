@@ -144,7 +144,6 @@ func GetServerStats() []byte {
 // channel stats
 func GetChannelStats() []byte {
 	res := map[string]interface{}{}
-	res["cur"] = channel.NumDID()
 	res["refreshed"] = channelStats.Refreshed
 	res["created"] = channelStats.Created
 	res["expired"] = channelStats.Expired

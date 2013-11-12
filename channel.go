@@ -53,7 +53,3 @@ func (c *Channel) GetSubscriber(key string) *Subscriber {
 
 	return s
 }
-
-func (c *Channel) NumDID() int {
-	return len(c.did)
-}
