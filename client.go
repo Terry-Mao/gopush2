@@ -8,7 +8,7 @@ import (
 
 func Client(w http.ResponseWriter, r *http.Request) {
     addr := Conf.Addr
-    if addr == nil {
+    if addr == "" {
         addr = "localhost"
     }
 
