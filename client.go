@@ -7,6 +7,11 @@ import (
 )
 
 func Client(w http.ResponseWriter, r *http.Request) {
+    addr := Conf.Addr
+    if addr == nil {
+        addr = "localhost"
+    }
+
 	html := fmt.Sprintf(`
 <!doctype html>
 <html>
@@ -43,6 +48,6 @@ func Client(w http.ResponseWriter, r *http.Request) {
         };
 </script>
 <h1>Push Service </h1>
-`, Conf.Addr, Conf.Port)
+`, addr, Conf.Port)
 	io.WriteString(w, html)
 }
