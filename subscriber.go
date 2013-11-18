@@ -19,13 +19,13 @@ var (
 )
 
 type Subscriber struct {
-	mutex      *sync.Mutex
-	message    *skiplist.SkipList
-	conn       map[*websocket.Conn]bool
-	Token      string
-	Expire     int64
-	MaxMessage int
-	Key        string
+	mutex      *sync.Mutex              // mutex
+	message    *skiplist.SkipList       // message stored struct
+	conn       map[*websocket.Conn]bool // stored conn
+	Token      string                   // auth token
+	Expire     int64                    // absolute expired unix nano
+	MaxMessage int                      // max message a subscriber can stored
+	Key        string                   // the sub key
 }
 
 // new a subscriber
@@ -106,6 +106,7 @@ func (s *Subscriber) CloseAllConn() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	// TODO check expired
 	for ws, _ := range s.conn {
 		Log.Printf("close websocket.Conn to %s", s.Key)
 		if err := ws.Close(); err != nil {
@@ -120,7 +121,7 @@ func (s *Subscriber) CloseAllConn() {
 }
 
 // publish message to the subscriber
-func (s *Subscriber) AddMessage(msg string, expire int64) {
+func (s *Subscriber) PublishMessage(msg string, expire int64) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	subscriberStats.IncrAddedMessage()
@@ -131,6 +132,7 @@ func (s *Subscriber) AddMessage(msg string, expire int64) {
 		return
 	}
 
+	//TODO check expired
 	// check exceed the max message length
 	if s.message.Length+1 > s.MaxMessage {
 		// remove the first node cause that's the smallest node

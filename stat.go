@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/user"
 	"runtime"
+	"sync/atomic"
 	"time"
 )
 
@@ -36,54 +37,54 @@ var (
 
 // increment channel created number
 func (c *ChannelStats) IncrCreated() {
-	c.Created++
+	atomic.AddInt64(&c.Created, 1)
 }
 
 // increment channel expired number
 func (c *ChannelStats) IncrExpired() {
-	c.Expired++
+	atomic.AddInt64(&c.Expired, 1)
 
 }
 
 // increment channel refreshed number
 func (c *ChannelStats) IncrRefreshed() {
-	c.Refreshed++
+	atomic.AddInt64(&c.Refreshed, 1)
 }
 
 // increment subscriber created number
 func (s *SubscriberStats) IncrCreated() {
-	s.Created++
+	atomic.AddInt64(&s.Created, 1)
 }
 
 // increment subscriber added message
 func (s *SubscriberStats) IncrAddedMessage() {
-	s.AddedMessage++
+	atomic.AddInt64(&s.AddedMessage, 1)
 }
 
 // increment subscriber deleted message
 func (s *SubscriberStats) IncrDeletedMessage() {
-	s.DeletedMessage++
+	atomic.AddInt64(&s.DeletedMessage, 1)
 }
 
 // increment subscriber sent message
 func (s *SubscriberStats) IncrSentMessage() {
-	s.SentMessage++
+	atomic.AddInt64(&s.SentMessage, 1)
 }
 
 // increment subscriber expired message
 func (s *SubscriberStats) IncrExpiredMessage() {
-	s.ExpiredMessage++
+	atomic.AddInt64(&s.ExpiredMessage, 1)
 }
 
 // increment subscriber conn
 func (s *SubscriberStats) IncrConn() {
-	s.TotalConn++
-	s.CurConn++
+	atomic.AddInt64(&s.TotalConn, 1)
+	atomic.AddInt64(&s.CurConn, 1)
 }
 
 // decrment subscriber conn
 func (s *SubscriberStats) DecrConn() {
-	s.CurConn--
+	atomic.AddInt64(&s.CurConn, -1)
 }
 
 // start stats, called at process start
@@ -92,8 +93,7 @@ func StartStats() {
 }
 
 // memory stats
-func GetMemStats() []byte {
-	//TODO
+func MemStats() []byte {
 	m := &runtime.MemStats{}
 	runtime.ReadMemStats(m)
 	// general
@@ -133,7 +133,7 @@ func GetMemStats() []byte {
 }
 
 // golang stats
-func GetGoStats() []byte {
+func GoStats() []byte {
 	res := map[string]interface{}{}
 	res["compiler"] = runtime.Compiler
 	res["arch"] = runtime.GOARCH
@@ -148,7 +148,7 @@ func GetGoStats() []byte {
 }
 
 // server stats
-func GetServerStats() []byte {
+func ServerStats() []byte {
 	res := map[string]interface{}{}
 	res["uptime"] = time.Now().UnixNano() - startTime
 	hostname, _ := os.Hostname()
@@ -171,31 +171,31 @@ func GetServerStats() []byte {
 }
 
 // channel stats
-func GetChannelStats() []byte {
+func (s *ChannelStats) Stats() []byte {
 	res := map[string]interface{}{}
-	res["refreshed"] = channelStats.Refreshed
-	res["created"] = channelStats.Created
-	res["expired"] = channelStats.Expired
+	res["refreshed"] = s.Refreshed
+	res["created"] = s.Created
+	res["expired"] = s.Expired
 
 	return jsonRes(res)
 }
 
 // subscriber stats
-func GetSubscriberStats() []byte {
+func (s *SubscriberStats) Stats() []byte {
 	res := map[string]interface{}{}
-	res["created"] = subscriberStats.Created
-	res["added_message"] = subscriberStats.AddedMessage
-	res["deleted_message"] = subscriberStats.DeletedMessage
-	res["expired_message"] = subscriberStats.ExpiredMessage
-	res["sent_message"] = subscriberStats.SentMessage
-	res["total_conn"] = subscriberStats.TotalConn
-	res["cur_conn"] = subscriberStats.CurConn
+	res["created"] = s.Created
+	res["added_message"] = s.AddedMessage
+	res["deleted_message"] = s.DeletedMessage
+	res["expired_message"] = s.ExpiredMessage
+	res["sent_message"] = s.SentMessage
+	res["total_conn"] = s.TotalConn
+	res["cur_conn"] = s.CurConn
 
 	return jsonRes(res)
 }
 
 // configuration info
-func GetConfigInfo() []byte {
+func ConfigInfo() []byte {
 	strJson, err := json.Marshal(Conf)
 	if err != nil {
 		Log.Printf("json.Marshal(\"%v\") failed", Conf)
@@ -227,17 +227,17 @@ func Stat(w http.ResponseWriter, r *http.Request) {
 	res := []byte{}
 	switch types {
 	case "memory":
-		res = GetMemStats()
+		res = MemStats()
 	case "server":
-		res = GetServerStats()
+		res = ServerStats()
 	case "golang":
-		res = GetGoStats()
+		res = GoStats()
 	case "subscriber":
-		res = GetSubscriberStats()
+		res = subscriberStats.Stats()
 	case "channel":
-		res = GetChannelStats()
+		res = channelStats.Stats()
 	case "confit":
-		res = GetConfigInfo()
+		res = ConfigInfo()
 	}
 
 	if _, err := w.Write(res); err != nil {

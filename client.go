@@ -7,10 +7,10 @@ import (
 )
 
 func Client(w http.ResponseWriter, r *http.Request) {
-    addr := Conf.Addr
-    if addr == "" {
-        addr = "localhost"
-    }
+	addr := Conf.Addr
+	if addr == "" {
+		addr = "localhost"
+	}
 
 	html := fmt.Sprintf(`
 <!doctype html>

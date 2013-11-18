@@ -48,7 +48,7 @@ func Publish(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// fetch subscriber from the channel
-	sub := channel.GetSubscriber(key)
+	sub := channel.Subscriber(key)
 	if sub == nil {
 		if err = pubRetWrite(w, "can't get a subscriber", RetInternalErr); err != nil {
 			Log.Printf("pubRetWrite() failed (%s)", err.Error())
@@ -57,7 +57,7 @@ func Publish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sub.AddMessage(string(body), expire)
+	sub.PublishMessage(string(body), expire)
 	if err = pubRetWrite(w, "ok", RetOK); err != nil {
 		Log.Printf("pubRetWrite() failed (%s)", err.Error())
 	}
@@ -82,7 +82,7 @@ func Subscribe(ws *websocket.Conn) {
 
 	Log.Printf("client (%s) subscribe to key %s with msg_id = %s", ws.Request().RemoteAddr, subKey, midStr)
 	// fetch subscriber from the channel
-	sub := channel.GetSubscriber(subKey)
+	sub := channel.Subscriber(subKey)
 	if sub == nil {
 		Log.Printf("can't get a subscriber from channel, key : %s", subKey)
 		return
