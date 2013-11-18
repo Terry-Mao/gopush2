@@ -46,7 +46,7 @@ $ go get -u github.com/Terry-Mao/gopush2
 # start the gopush2 server
 $ nohup ./gopush2 -c ./gopush2.conf 2>&1 >> ./panic.log &
 
-# 1. open http://localhost:8080/client in browser and press the Send button (modify the gopush2.conf, set debug to 1)
+# 1. open http://localhost:8080/client in browser (modify the gopush2.conf, set debug to 1)
 # 2. you can use curl
 $ curl -d "test" http://localhost:8080/pub?key=Terry-Mao\&expire=30
 # then your browser will alert the "message"
