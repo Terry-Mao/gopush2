@@ -16,6 +16,7 @@
 
 ## Features
  * Lightweight
+ * High performance
  * Native Go implemention
  * Lazy channel expiration
  * Lazy single message expiration
