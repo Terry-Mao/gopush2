@@ -105,10 +105,10 @@ Read the `Terry-Mao/gopush2` documentation from a terminal
 ```sh
 $ go doc github.com/Terry-Mao/gopush2
 ```
+Alternatively, you can [gopush2](http://go.pkgdoc.org/github.com/Terry-Mao/gopush2).
 
 ## TODO
   * Add tcp support
   * Add more test
   * Add test case and examples
 
-Alternatively, you can [gopush2](http://go.pkgdoc.org/github.com/Terry-Mao/gopush2).
