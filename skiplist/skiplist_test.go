@@ -505,3 +505,31 @@ func TestSkipListEqual(t *testing.T) {
 		j += 2
 	}
 }
+
+func BenchmarkSkipListInsert(b *testing.B) {
+	sl := New()
+	for i := 0; i < b.N; i++ {
+        err := sl.Insert(int64(i), "test", int64(i))
+        if err != nil {
+            b.Error(err)
+        }
+	}
+}
+
+func BenchmarkSkipListEqual(b *testing.B) {
+    b.StopTimer()
+	sl := New()
+	for i := 0; i < b.N; i++ {
+        err := sl.Insert(int64(i), "test", int64(i))
+        if err != nil {
+            b.Error(err)
+        }
+	}
+
+    b.StartTimer()
+	for i := 0; i < b.N; i++ {
+        if n := sl.Equal(int64(i)); n == nil {
+            b.Error("skiplist not find node")
+        }
+	}
+}

@@ -1,7 +1,8 @@
 package main
 
 import (
-	"code.google.com/p/go.net/websocket"
+	"net"
+	// "code.google.com/p/go.net/websocket"
 	"encoding/json"
 	"errors"
 	"github.com/Terry-Mao/gopush2/skiplist"
@@ -19,13 +20,13 @@ var (
 )
 
 type Subscriber struct {
-	mutex      *sync.Mutex              // mutex
-	message    *skiplist.SkipList       // message stored struct
-	conn       map[*websocket.Conn]bool // stored conn
-	Token      string                   // auth token
-	Expire     int64                    // absolute expired unix nano
-	MaxMessage int                      // max message a subscriber can stored
-	Key        string                   // the sub key
+	mutex      *sync.Mutex        // mutex
+	message    *skiplist.SkipList // message stored struct
+	conn       map[net.Conn]bool  // stored conn
+	Token      string             // auth token
+	Expire     int64              // absolute expired unix nano
+	MaxMessage int                // max message a subscriber can stored
+	Key        string             // the sub key
 }
 
 // new a subscriber
@@ -33,7 +34,7 @@ func NewSubscriber(key string) *Subscriber {
 	s := &Subscriber{}
 	s.mutex = &sync.Mutex{}
 	s.message = skiplist.New()
-	s.conn = map[*websocket.Conn]bool{}
+	s.conn = map[net.Conn]bool{}
 	s.Expire = time.Now().UnixNano() + Conf.ChannelExpireSec*Second
 	s.MaxMessage = Conf.MaxStoredMessage
 	s.Key = key
@@ -43,7 +44,7 @@ func NewSubscriber(key string) *Subscriber {
 }
 
 // send mssage after mid
-func (s *Subscriber) SendStoredMessage(ws *websocket.Conn, mid int64) error {
+func (s *Subscriber) SendStoredMessage(conn net.Conn, mid int64) error {
 	now := time.Now().UnixNano()
 	expired := []int64{}
 
@@ -60,7 +61,7 @@ func (s *Subscriber) SendStoredMessage(ws *websocket.Conn, mid int64) error {
 	for n := s.message.Greate(mid); n != nil; n = n.Next() {
 		// the next node may expired, recheck
 		if n.Expire >= now {
-			if err := subRetWrite(ws, n.Member, n.Score); err != nil {
+			if err := subRetWrite(conn, n.Member, n.Score); err != nil {
 				Log.Printf("subRetWrite() failed (%s)", err.Error())
 				return err
 			}
@@ -76,7 +77,7 @@ func (s *Subscriber) SendStoredMessage(ws *websocket.Conn, mid int64) error {
 }
 
 // add a connection
-func (s *Subscriber) AddConn(ws *websocket.Conn) error {
+func (s *Subscriber) AddConn(conn net.Conn) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	subscriberStats.IncrConn()
@@ -84,19 +85,19 @@ func (s *Subscriber) AddConn(ws *websocket.Conn) error {
 		return ErrMaxConn
 	}
 
-	Log.Printf("add websocket.Conn to %s", s.Key)
-	s.conn[ws] = true
+	Log.Printf("add Conn to %s", s.Key)
+	s.conn[conn] = true
 
 	return nil
 }
 
 // remove a connection
-func (s *Subscriber) RemoveConn(ws *websocket.Conn) {
+func (s *Subscriber) RemoveConn(conn net.Conn) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	subscriberStats.DecrConn()
-	Log.Printf("remove websocket.Conn to %s", s.Key)
-	delete(s.conn, ws)
+	Log.Printf("remove conn to %s", s.Key)
+	delete(s.conn, conn)
 
 	return
 }
@@ -107,13 +108,13 @@ func (s *Subscriber) CloseAllConn() {
 	defer s.mutex.Unlock()
 
 	// TODO check expired
-	for ws, _ := range s.conn {
+	for conn, _ := range s.conn {
 		Log.Printf("close websocket.Conn to %s", s.Key)
-		if err := ws.Close(); err != nil {
-			Log.Printf("ws.Close() failed (%s)", err.Error())
+		if err := conn.Close(); err != nil {
+			Log.Printf("conn.Close() failed (%s)", err.Error())
 		}
 
-		delete(s.conn, ws)
+		delete(s.conn, conn)
 		subscriberStats.DecrConn()
 	}
 
@@ -158,10 +159,9 @@ func (s *Subscriber) PublishMessage(msg string, expire int64) {
 	}
 
 	// send message to all the clients
-	for ws, _ := range s.conn {
-		if err := subRetWrite(ws, msg, now); err != nil {
+	for conn, _ := range s.conn {
+		if err := subRetWrite(conn, msg, now); err != nil {
 			// remove exists conn
-			// delete(s.conn, ws)
 			Log.Printf("subRetWrite() failed (%s)", err.Error())
 		}
 
@@ -172,7 +172,7 @@ func (s *Subscriber) PublishMessage(msg string, expire int64) {
 	return
 }
 
-func subRetWrite(ws *websocket.Conn, msg string, msgID int64) error {
+func subRetWrite(conn net.Conn, msg string, msgID int64) error {
 	res := map[string]interface{}{}
 	res["msg"] = msg
 	res["msg_id"] = msgID
@@ -185,8 +185,8 @@ func subRetWrite(ws *websocket.Conn, msg string, msgID int64) error {
 
 	respJson := string(strJson)
 	Log.Printf("sub send to client: %s", respJson)
-	if _, err := ws.Write(strJson); err != nil {
-		Log.Printf("ws.Write(\"%s\") failed (%s)", respJson, err.Error())
+	if _, err := conn.Write(strJson); err != nil {
+		Log.Printf("conn.Write(\"%s\") failed (%s)", respJson, err.Error())
 		return err
 	}
 
