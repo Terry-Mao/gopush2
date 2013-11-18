@@ -19,6 +19,10 @@ type Channel struct {
 	subscriber []*channelBucket
 }
 
+var (
+	channel *Channel
+)
+
 func NewChannel() *Channel {
 	c := &Channel{}
 	c.subscriber = []*channelBucket{}

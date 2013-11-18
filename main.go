@@ -1,12 +1,9 @@
 package main
 
 import (
-	"code.google.com/p/go.net/websocket"
 	"flag"
-	"fmt"
 	"github.com/Terry-Mao/gopush2/cfg"
 	"log"
-	"net/http"
 	"os"
 	"runtime"
 )
@@ -23,8 +20,6 @@ func init() {
 func main() {
 	var err error
 
-	// start stats
-	StartStats()
 	// parse cmd-line arguments
 	flag.Parse()
 	// init config
@@ -48,40 +43,16 @@ func main() {
 
 	// Set max routine
 	runtime.GOMAXPROCS(Conf.MaxProcs)
-
-	// set sub handler
-	http.Handle("/sub", websocket.Handler(Subscribe))
-	if Conf.Debug == 1 {
-		http.HandleFunc("/client", Client)
-	}
-
 	// create channel
 	channel = NewChannel()
 	Log.Printf("gopush2 service start.")
-
-	// admin
-	if Conf.AdminAddr != Conf.Addr || Conf.AdminPort != Conf.Port {
-		go func() {
-			adminServeMux := http.NewServeMux()
-			// publish
-			adminServeMux.HandleFunc("/pub", Publish)
-			// stat
-			adminServeMux.HandleFunc("/stat", Stat)
-			err := http.ListenAndServe(fmt.Sprintf("%s:%d", Conf.AdminAddr, Conf.AdminPort), adminServeMux)
-			if err != nil {
-				panic(err)
-			}
-		}()
-	} else {
-		http.HandleFunc("/pub", Publish)
-		http.HandleFunc("/stat", Stat)
+	// start stats
+	StartStats()
+	// Start http push service
+	if err = StartHttp(); err != nil {
+		Log.Printf("StartHttp failed (%s)", err.Error())
 	}
 
-	// start listen and pending here
-	if err = Listen(Conf.Addr, Conf.Port); err != nil {
-		Log.Printf("Listen() failed (%s)", err.Error())
-		return
-	}
-
+	// exit
 	Log.Printf("gopush2 service stop.")
 }

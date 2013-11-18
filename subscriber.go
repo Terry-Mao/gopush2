@@ -16,7 +16,7 @@ const (
 
 var (
 	ErrMaxConn = errors.New("Exceed the max subscriber connection per key")
-	ErrExpired = errors.New("Channel expired")
+	// ErrExpired = errors.New("Channel expired")
 )
 
 type Subscriber struct {

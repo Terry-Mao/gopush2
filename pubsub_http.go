@@ -3,7 +3,9 @@ package main
 import (
 	"code.google.com/p/go.net/websocket"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"runtime/debug"
 	"strconv"
@@ -11,14 +13,55 @@ import (
 )
 
 const (
-	RetInternalErr    = 65535
-	RetChannelExpired = 1
-	RetOK             = 0
+	retInternalErr = 65535
+	retOK          = 0
 )
 
-var (
-	channel *Channel
-)
+func StartHttp() error {
+	// set sub handler
+	http.Handle("/sub", websocket.Handler(Subscribe))
+	if Conf.Debug == 1 {
+		http.HandleFunc("/client", Client)
+	}
+
+	// admin
+	if Conf.AdminAddr != Conf.Addr || Conf.AdminPort != Conf.Port {
+		go func() {
+			adminServeMux := http.NewServeMux()
+			// publish
+			adminServeMux.HandleFunc("/pub", Publish)
+			// stat
+			adminServeMux.HandleFunc("/stat", Stat)
+			err := http.ListenAndServe(fmt.Sprintf("%s:%d", Conf.AdminAddr, Conf.AdminPort), adminServeMux)
+			if err != nil {
+				panic(err)
+			}
+		}()
+	} else {
+		http.HandleFunc("/pub", Publish)
+		http.HandleFunc("/stat", Stat)
+	}
+
+	a := fmt.Sprintf("%s:%d", Conf.Addr, Conf.Port)
+	if Conf.TCPKeepAlive == 1 {
+		server := &http.Server{}
+		l, err := net.Listen("tcp", a)
+		if err != nil {
+			Log.Printf("net.Listen(\"tcp\", \"%s\") failed (%s)", a, err.Error())
+			return err
+		}
+
+		return server.Serve(&KeepAliveListener{Listener: l})
+	} else {
+		if err := http.ListenAndServe(a, nil); err != nil {
+			Log.Printf("http.ListenAdServe(\"%s\") failed (%s)", a, err.Error())
+			return err
+		}
+	}
+
+	// nerve here
+	return nil
+}
 
 func Publish(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
@@ -40,7 +83,7 @@ func Publish(w http.ResponseWriter, r *http.Request) {
 	expire = time.Now().UnixNano() + expire*Second
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		if err = pubRetWrite(w, "read http body error", RetInternalErr); err != nil {
+		if err = pubRetWrite(w, "read http body error", retInternalErr); err != nil {
 			Log.Printf("pubRetWrite() failed (%s)", err.Error())
 		}
 
@@ -50,7 +93,7 @@ func Publish(w http.ResponseWriter, r *http.Request) {
 	// fetch subscriber from the channel
 	sub := channel.Subscriber(key)
 	if sub == nil {
-		if err = pubRetWrite(w, "can't get a subscriber", RetInternalErr); err != nil {
+		if err = pubRetWrite(w, "can't get a subscriber", retInternalErr); err != nil {
 			Log.Printf("pubRetWrite() failed (%s)", err.Error())
 		}
 
@@ -58,7 +101,7 @@ func Publish(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sub.PublishMessage(string(body), expire)
-	if err = pubRetWrite(w, "ok", RetOK); err != nil {
+	if err = pubRetWrite(w, "ok", retOK); err != nil {
 		Log.Printf("pubRetWrite() failed (%s)", err.Error())
 	}
 
