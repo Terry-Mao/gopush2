@@ -71,6 +71,7 @@ a simple javascript examples
   "max_procs": 4, # the service used cpu cores
   "max_subscriber_per_key": 1, # the max subscriber per key
   "tcp_keepalive": 1, # use SO_KEEPALIVE, for lost tcp connection fast detection (1: open, 0: close)
+  "channel_bucket": 16, # the channel inner hashmap number, default 16
   "debug": 1 # use test client, http://xx:xx/client (1: open, 0: close)
 }
 ```

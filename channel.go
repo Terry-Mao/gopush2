@@ -6,10 +6,6 @@ import (
 	"time"
 )
 
-const (
-	bucketSize = 16
-)
-
 type channelBucket struct {
 	data  map[string]*Subscriber
 	mutex *sync.Mutex
@@ -27,7 +23,7 @@ func NewChannel() *Channel {
 	c := &Channel{}
 	c.subscriber = []*channelBucket{}
 	// split hashmap to 16 bucket
-	for i := 0; i < bucketSize; i++ {
+	for i := 0; i < Conf.ChannelBucket; i++ {
 		b := &channelBucket{
 			data:  map[string]*Subscriber{},
 			mutex: &sync.Mutex{},
@@ -41,7 +37,7 @@ func NewChannel() *Channel {
 
 // get a bucket from channel
 func (c *Channel) bucket(key string) *channelBucket {
-	idx := mmhash.MurMurHash2(key) & (bucketSize - 1)
+	idx := mmhash.MurMurHash2(key) & (Conf.ChannelBucket - 1)
 	return c.subscriber[idx]
 }
 
