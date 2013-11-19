@@ -84,6 +84,7 @@ a simple javascript examples
 
 Sub Response Json:
 msg|msg_id
+---|---
 the publish message|the publish message id
 the reponse json examples:
 ```json
@@ -95,6 +96,7 @@ the reponse json examples:
 
 Pub Response Json:
 ret|msg
+---|---
 reture code (0: succeed, 65535: internal error)|return error message
 
 ## Development
