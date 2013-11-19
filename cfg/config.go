@@ -17,8 +17,8 @@ func init() {
 }
 
 type Config struct {
-	Addr                string `json:"addr"`
-	Port                int    `json:"port"`
+	Addr string `json:"addr"`
+	Port int    `json:"port"`
 	//Pprof               int    `json:"pprof"`
 	AdminAddr           string `json:"admin_addr"`
 	AdminPort           int    `json:"admin_port"`
@@ -29,7 +29,7 @@ type Config struct {
 	MaxProcs            int    `json:"max_procs"`
 	MaxSubscriberPerKey int    `json:"max_subscriber_per_key"`
 	TCPKeepAlive        int    `json:"tcp_keepalive"`
-    ChannelBucket       int    `json:"channel_bucket"`
+	ChannelBucket       int    `json:"channel_bucket"`
 	Debug               int    `json:"debug"`
 }
 
@@ -42,10 +42,10 @@ func New(file string) (*Config, error) {
 	}
 
 	cf := &Config{
-		Addr:                "localhost",
-		Port:                8080,
-		AdminAddr:           "localhost",
-		AdminPort:           8080,
+		Addr:      "localhost",
+		Port:      8080,
+		AdminAddr: "localhost",
+		AdminPort: 8080,
 		//Pprof:               1,
 		MessageExpireSec:    10800,  // 3 hour
 		ChannelExpireSec:    604800, // 24 * 7 hour
@@ -54,7 +54,7 @@ func New(file string) (*Config, error) {
 		MaxSubscriberPerKey: 0, // no limit
 		MaxProcs:            runtime.NumCPU(),
 		TCPKeepAlive:        1,
-        ChannelBucket:       16,
+		ChannelBucket:       16,
 		Debug:               0,
 	}
 

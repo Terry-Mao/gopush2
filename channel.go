@@ -37,7 +37,7 @@ func NewChannel() *Channel {
 
 // get a bucket from channel
 func (c *Channel) bucket(key string) *channelBucket {
-	idx := mmhash.MurMurHash2(key) & (Conf.ChannelBucket - 1)
+	idx := mmhash.MurMurHash2(key) & uint(Conf.ChannelBucket-1)
 	return c.subscriber[idx]
 }
 

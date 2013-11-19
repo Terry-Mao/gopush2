@@ -15,9 +15,14 @@ const (
 )
 
 var (
-	ErrMaxConn = errors.New("Exceed the max subscriber connection per key")
-	// ErrExpired = errors.New("Channel expired")
+	ErrMaxConn    = errors.New("Exceed the max subscriber connection per key")
+	ErrAssertType = errors.New("Subscriber assert type failed")
 )
+
+type Message struct {
+	Msg    string
+	Expire int64
+}
 
 type Subscriber struct {
 	mutex      *sync.Mutex        // mutex
@@ -46,30 +51,27 @@ func NewSubscriber(key string) *Subscriber {
 // send mssage after mid
 func (s *Subscriber) SendStoredMessage(conn net.Conn, mid int64) error {
 	now := time.Now().UnixNano()
-	expired := []int64{}
-
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	defer func() {
-		// delete the expired message
-		for _, score := range expired {
-			s.message.Delete(score)
-			Log.Printf("delete the expired message %d for device %s", score, s.Key)
-		}
-	}()
-
 	for n := s.message.Greate(mid); n != nil; n = n.Next() {
+		m, ok := n.Member.(*Message)
+		if !ok {
+			return ErrAssertType
+		}
+
 		// the next node may expired, recheck
-		if n.Expire >= now {
-			if err := subRetWrite(conn, n.Member, n.Score); err != nil {
+		if m.Expire >= now {
+			if err := subRetWrite(conn, m.Msg, n.Score); err != nil {
 				Log.Printf("subRetWrite() failed (%s)", err.Error())
 				return err
 			}
 
 			subscriberStats.IncrSentMessage()
 		} else {
-			expired = append(expired, n.Score)
+			// WARN:though the node deleted, can access the next node
+			s.message.Delete(n.Score)
 			subscriberStats.IncrExpiredMessage()
+			Log.Printf("delete the expired message %d for device %s", n.Score, s.Key)
 		}
 	}
 
@@ -133,7 +135,6 @@ func (s *Subscriber) PublishMessage(msg string, expire int64) {
 		return
 	}
 
-	//TODO check expired
 	// check exceed the max message length
 	if s.message.Length+1 > s.MaxMessage {
 		// remove the first node cause that's the smallest node
@@ -150,7 +151,7 @@ func (s *Subscriber) PublishMessage(msg string, expire int64) {
 
 	for {
 		// if has exists node, sleep and retry
-		err := s.message.Insert(now, msg, expire)
+		err := s.message.Insert(now, &Message{Msg: msg, Expire: expire})
 		if err != nil {
 			now++
 		}

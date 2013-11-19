@@ -17,16 +17,15 @@ var (
 )
 
 type Node struct {
-	Score   int64 // key
-	Member  string // value
-	Expire  int64 // expired unixnano
-	level   int // node level
-	forward []*Node // forward index
+	Score   int64       // key
+	Member  interface{} // data
+	level   int         // node level
+	forward []*Node     // forward index
 }
 
 type SkipList struct {
-	Level  int // max level
-	Length int // node length
+	Level  int   // max level
+	Length int   // node length
 	Head   *Node // head node
 }
 
@@ -118,7 +117,7 @@ func (sl *SkipList) Greate(score int64) *Node {
 }
 
 // insert a node into skiplist
-func (sl *SkipList) Insert(score int64, member string, expire int64) error {
+func (sl *SkipList) Insert(score int64, member interface{}) error {
 	var q *Node
 	p := sl.Head
 	update := make([]*Node, MaxNumberOfLevels)
@@ -148,9 +147,8 @@ func (sl *SkipList) Insert(score int64, member string, expire int64) error {
 
 	// new node
 	q = newNode(level)
-	q.Member = member
 	q.Score = score
-	q.Expire = expire
+	q.Member = member
 
 	// every level index add the new node
 	for i := level; i >= 0; i-- {
@@ -164,7 +162,7 @@ func (sl *SkipList) Insert(score int64, member string, expire int64) error {
 }
 
 // update a node in skiplist
-func (sl *SkipList) Update(score int64, member string, expire int64) {
+func (sl *SkipList) Update(score int64, member interface{}) {
 	var q *Node
 	p := sl.Head
 	update := make([]*Node, MaxNumberOfLevels)
@@ -181,7 +179,6 @@ func (sl *SkipList) Update(score int64, member string, expire int64) {
 	// node exists
 	if q != nil && q.Score == score {
 		q.Member = member
-		q.Expire = expire
 		return
 	}
 
@@ -210,7 +207,7 @@ func (sl *SkipList) Update(score int64, member string, expire int64) {
 }
 
 // delete a node search by score
-func (sl *SkipList) Delete(score int64) error {
+func (sl *SkipList) Delete(score int64) *Node {
 	var q *Node
 	p := sl.Head
 	update := make([]*Node, MaxNumberOfLevels)
@@ -242,10 +239,10 @@ func (sl *SkipList) Delete(score int64) error {
 
 		sl.Level = j
 		sl.Length = sl.Length - 1
-		return nil
+		return q
 	}
 
-	return ErrNodeNotExists
+	return nil
 }
 
 // skiplist node's Next node
