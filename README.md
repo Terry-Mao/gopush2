@@ -82,22 +82,19 @@ a simple javascript examples
  3. post to http://localhost:port/pub?key=xxx&expire=30, the message write to http body (the url query field "expire" means message expired after 30 second)
  4. if any error, gopush2 close the socket, client need to retry connect
 
-Sub Response Json:
-msg|msg_id
----|---
-the publish message|the publish message id
-the reponse json examples:
-```json
+```python
+# Subscriber received response json
 {
-    "msg" : "hello, world",
-    "msg_id" : 1
+    "msg" : "hello, world", # published message content
+    "msg_id" : 1 # published message associated id
+}
+
+# Publisher received response json
+{
+    "ret" : 0, # return code (0: succeed, 65535: internal error)
+    "msg" : "ok" # return message ("ok" returned if succeed, or detail error message)
 }
 ```
-
-Pub Response Json:
-ret|msg
----|---
-reture code (0: succeed, 65535: internal error)|return error message
 
 ## Development
 `Terry-Mao/gopush2` is not feature-complete yet. Your help is very appreciated.
