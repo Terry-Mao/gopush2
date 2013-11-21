@@ -17,9 +17,8 @@ func init() {
 }
 
 type Config struct {
-	Addr string `json:"addr"`
-	Port int    `json:"port"`
-	//Pprof               int    `json:"pprof"`
+	Addr                string `json:"addr"`
+	Port                int    `json:"port"`
 	AdminAddr           string `json:"admin_addr"`
 	AdminPort           int    `json:"admin_port"`
 	Log                 string `json:"log"`
@@ -30,8 +29,9 @@ type Config struct {
 	MaxSubscriberPerKey int    `json:"max_subscriber_per_key"`
 	TCPKeepAlive        int    `json:"tcp_keepalive"`
 	ChannelBucket       int    `json:"channel_bucket"`
-    ChannelType         int    `json:"channel_type"`
-    HeartbeatSec        int    `json:"heartbeat_sec"`
+	ChannelType         int    `json:"channel_type"`
+	HeartbeatSec        int    `json:"heartbeat_sec"`
+	Auth                int    `json:"auth"`
 	Debug               int    `json:"debug"`
 }
 
@@ -57,8 +57,9 @@ func New(file string) (*Config, error) {
 		MaxProcs:            runtime.NumCPU(),
 		TCPKeepAlive:        1,
 		ChannelBucket:       16,
-        ChannelType:         0,
-        HeartbeatSec:        30,
+		ChannelType:         0,
+		HeartbeatSec:        30,
+		Auth:                1,
 		Debug:               0,
 	}
 

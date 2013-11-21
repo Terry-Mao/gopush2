@@ -152,7 +152,7 @@ func (c *InnerChannel) RemoveConn(conn net.Conn, mid int64, key string) error {
 }
 
 // AddToken implements the Channel AddToken method.
-func (c *InnerChannel) AddToken(token string) error {
+func (c *InnerChannel) AddToken(token string, key string) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	if _, ok := c.token[token]; ok {

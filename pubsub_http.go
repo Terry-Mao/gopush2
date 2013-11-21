@@ -15,6 +15,8 @@ import (
 const (
 	// internal failed
 	retInternalErr = 65535
+	// param error
+	retParamErr = 65534
 	// ok
 	retOK = 0
 	// create channel failed
@@ -30,7 +32,6 @@ const (
 func StartHttp() error {
 	// set sub handler
 	http.Handle("/sub", websocket.Handler(SubscribeHandle))
-	http.HandleFunc("/ch", ChannelHandle)
 	if Conf.Debug == 1 {
 		http.HandleFunc("/client", Client)
 	}
@@ -43,6 +44,11 @@ func StartHttp() error {
 			adminServeMux.HandleFunc("/pub", PublishHandle)
 			// stat
 			adminServeMux.HandleFunc("/stat", StatHandle)
+			// channel
+			if Conf.Auth == 1 {
+				adminServeMux.HandleFunc("/ch", ChannelHandle)
+			}
+
 			err := http.ListenAndServe(fmt.Sprintf("%s:%d", Conf.AdminAddr, Conf.AdminPort), adminServeMux)
 			if err != nil {
 				panic(err)
@@ -51,6 +57,9 @@ func StartHttp() error {
 	} else {
 		http.HandleFunc("/pub", PublishHandle)
 		http.HandleFunc("/stat", StatHandle)
+		if Conf.Auth == 1 {
+			http.HandleFunc("/ch", ChannelHandle)
+		}
 	}
 
 	a := fmt.Sprintf("%s:%d", Conf.Addr, Conf.Port)
@@ -84,7 +93,13 @@ func ChannelHandle(w http.ResponseWriter, r *http.Request) {
 	params := r.URL.Query()
 	key := params.Get("key")
 	token := params.Get("token")
-	// TODO bussiness logical
+	if key == "" || token == "" {
+		if err = retWrite(w, "param error", retParamErr); err != nil {
+			Log.Printf("retWrite failed (%s)", err.Error())
+		}
+
+		return
+	}
 
 	Log.Printf("device %s: add channel, token = %s", key, token)
 	c, err := channel.New(key)
@@ -97,7 +112,7 @@ func ChannelHandle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = c.AddToken(token); err != nil {
+	if err = c.AddToken(token, key); err != nil {
 		Log.Printf("device %s: can't add token %s", key, token)
 		if err = retWrite(w, "add token failed", retAddToken); err != nil {
 			Log.Printf("retWrite failed (%s)", err.Error())
@@ -178,13 +193,13 @@ func SubscribeHandle(ws *websocket.Conn) {
 	heartbeat := Conf.HeartbeatSec
 	heartbeatStr := params.Get("heartbeat")
 	if heartbeatStr != "" {
-		i, err := strconv.ParseInt(heartbeatStr, 10, 32)
+		i, err := strconv.Atoi(heartbeatStr, 10, 32)
 		if err != nil {
 			Log.Printf("heartbeat argument error (%s)", err.Error())
 			return
 		}
 
-		heartbeat = int(i)
+		heartbeat = i
 	}
 
 	heartbeat *= 2
@@ -204,15 +219,17 @@ func SubscribeHandle(ws *websocket.Conn) {
 	}
 
 	// auth
-	if err = c.AuthToken(token); err != nil {
-		Log.Printf("device %s: auth token failed \"%s\" (%s)", key, token, err.Error())
-		return
-	}
+	if Conf.Auth == 1 {
+		if err = c.AuthToken(token); err != nil {
+			Log.Printf("device %s: auth token failed \"%s\" (%s)", key, token, err.Error())
+			return
+		}
 
-	// add a conn to the channel
-	if err = c.AddConn(ws, mid, key); err != nil {
-		Log.Printf("device %s: add conn failed (%s)", key, err.Error())
-		return
+		// add a conn to the channel
+		if err = c.AddConn(ws, mid, key); err != nil {
+			Log.Printf("device %s: add conn failed (%s)", key, err.Error())
+			return
+		}
 	}
 
 	// remove exists conn

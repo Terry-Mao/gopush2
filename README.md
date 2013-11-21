@@ -49,10 +49,10 @@ $ go get -u github.com/Terry-Mao/gopush2
 # start the gopush2 server
 $ nohup ./gopush2 -c ./gopush2.conf 2>&1 >> ./panic.log &
 
-# 1. create a channel and init a token
+# create a channel and init a token
 $ curl http://localhost:8080/ch?key=Terry-Mao\&token=test
-# 2. open http://localhost:8080/client in browser (modify the gopush2.conf, set debug to 1)
-# 3. you can use curl
+# open http://localhost:8080/client in browser (modify the gopush2.conf, set debug to 1)
+# you can use curl
 $ curl -d "test" http://localhost:8080/pub?key=Terry-Mao\&expire=30
 # then your browser will alert the "message"
 # open http://localhost:8080/stat?type=memory in browser to get memstats(type: memory, server, channel, subscriber, golang, config)
@@ -113,17 +113,34 @@ a simple javascript examples
   "channel_bucket": 16, # the channel inner hashmap number, default 16
   "channel_type": 1, # the channel type (1: in-process store message, 2: redis store message)
   "heartbeat_sec": 30, # the server receive heartbeat time second (client send heartbeat to server, then reply to client)
+  "auth": 1, # the channel need auth (1: yes, 0: no)
   "debug": 1 # use test client, http://xx:xx/client (1: open, 0: close)
 }
 ```
 
 ## Protocol
- 1. Create a channle for the key http://localhost:port/ch?key=xxx&token=xxx (you can implement your own auth logical in your appserver, then create a channle for the key and reply a token to the client)
- 2. Sub the specified key "ws://localhost:port/sub?key=xxx&mid=$mid&token=xxx" use websocket (the $mid is stored is client, every time publish a message will return the mid, if client's $mid is nil then use 0, token is received by your own appserver)
- 3. The subscriber then block, till a message published to the sub key or receive client heartbeat
- 4. Post to http://localhost:port/pub?key=xxx&expire=30, the message write to http body (the url query field "expire" means message expired after 30 second)
- 5. If any error, gopush2 close the socket, client need to retry connect
- 6. Client send heartbeat and receive heartbeat
+```python
+ # 1
+ # Create a channle for the subscriber http://localhost:port/ch?key=xxx&token=xxx (when config file set auth = 1)
+ # You can implement your own auth logical in your appserver, then create a channle and add a token for the subscriber then reply a token to the client
+
+ # 2
+ # Sub the specified key "ws://localhost:port/sub?key=xxx&mid=$mid&token=xxx" use websocket 
+ # the $mid is stored is client, every time publish a message will return the mid, if client's $mid is nil then use 0
+ # token is received by your own appserver (when config file set auth = 1 else token is not needed)
+
+ # 3
+ # The subscriber then block, until a message published to the sub key or receive a server heartbeat
+ 
+ # 4
+ # Post to http://localhost:port/pub?key=xxx&expire=30, the message write to http body (the url query field "expire" means message expired after 30 second)
+
+ # 5
+ # If any error, gopush2 close the socket, client need to retry connect
+
+ # 6
+ # Client send heartbeat and receive heartbeat
+```
 
 ```python
 # Subscriber received response json

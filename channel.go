@@ -55,7 +55,7 @@ type Channel interface {
 	RemoveConn(conn net.Conn, mid int64, key string) error
 	// Add a token for one subscriber
 	// The request token not equal the subscriber token will return errors.
-	AddToken(token string) error
+	AddToken(token string, key string) error
 	// Auth auth the access token.
 	// The request token not match the subscriber token will return errors.
 	AuthToken(token string) error
