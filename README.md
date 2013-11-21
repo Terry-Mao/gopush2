@@ -24,6 +24,8 @@
  * Store the offline message
  * Multiple subscribers
  * Restrict the subscribers per key
+ * Heartbeat support
+ * Token authentication
  * Stats (Memory, Channel, Subscriber, Golang, Server)
 
 ## Requirements
@@ -47,14 +49,51 @@ $ go get -u github.com/Terry-Mao/gopush2
 # start the gopush2 server
 $ nohup ./gopush2 -c ./gopush2.conf 2>&1 >> ./panic.log &
 
-# 1. open http://localhost:8080/client in browser (modify the gopush2.conf, set debug to 1)
-# 2. you can use curl
+# 1. create a channel and init a token
+$ curl http://localhost:8080/ch?key=Terry-Mao\&token=test
+# 2. open http://localhost:8080/client in browser (modify the gopush2.conf, set debug to 1)
+# 3. you can use curl
 $ curl -d "test" http://localhost:8080/pub?key=Terry-Mao\&expire=30
 # then your browser will alert the "message"
 # open http://localhost:8080/stat?type=memory in browser to get memstats(type: memory, server, channel, subscriber, golang, config)
 ```
 a simple javascript examples
 ```javascript
+    <script type="text/javascript" src="http://img3.douban.com/js/packed_jquery.min6301986802.js" async="true"></script>
+    <script type="text/javascript">
+        var sock = null;
+        var wsuri = "ws://%s:%d/sub?key=Terry-Mao&mid=0&token=test";
+
+        window.onload = function() {
+            try
+            {
+                sock = new WebSocket(wsuri);
+            }catch (e) {
+                alert(e.Message);
+            }
+
+            sock.onopen = function() {
+                alert("connected to " + wsuri);
+            }
+
+            sock.onerror = function(e) {
+                alert(" error from connect " + e.Message);
+            }
+
+            sock.onclose = function(e) {
+                alert("connection closed (" + e.code + ")");
+            }
+
+            sock.onmessage = function(e) {
+                if(e.data != "") {
+                    alert("message received: " + e.data);
+                }
+            }
+
+        };
+
+        setInterval("sock.send('')", 3000);
+</script>
 ```
 
 ## Configuration
@@ -72,21 +111,25 @@ a simple javascript examples
   "max_subscriber_per_key": 1, # the max subscriber per key
   "tcp_keepalive": 1, # use SO_KEEPALIVE, for lost tcp connection fast detection (1: open, 0: close)
   "channel_bucket": 16, # the channel inner hashmap number, default 16
+  "channel_type": 1, # the channel type (1: in-process store message, 2: redis store message)
+  "heartbeat_sec": 30, # the server receive heartbeat time second (client send heartbeat to server, then reply to client)
   "debug": 1 # use test client, http://xx:xx/client (1: open, 0: close)
 }
 ```
 
 ## Protocol
- 1. Sub the specified key "ws://localhost:port/sub?key=xxx&msg_id=$msg_id" use websocket (the $msg_id is stored is client, every time publish a message will return the msg_id, if client's $msg_id is nil then use 0)
- 2. the subscriber then block, till a message published to the sub key
- 3. post to http://localhost:port/pub?key=xxx&expire=30, the message write to http body (the url query field "expire" means message expired after 30 second)
- 4. if any error, gopush2 close the socket, client need to retry connect
+ 1. Create a channle for the key http://localhost:port/ch?key=xxx&token=xxx (you can implement your own auth logical in your appserver, then create a channle for the key and reply a token to the client)
+ 2. Sub the specified key "ws://localhost:port/sub?key=xxx&mid=$mid&token=xxx" use websocket (the $mid is stored is client, every time publish a message will return the mid, if client's $mid is nil then use 0, token is received by your own appserver)
+ 3. The subscriber then block, till a message published to the sub key or receive client heartbeat
+ 4. Post to http://localhost:port/pub?key=xxx&expire=30, the message write to http body (the url query field "expire" means message expired after 30 second)
+ 5. If any error, gopush2 close the socket, client need to retry connect
+ 6. Client send heartbeat and receive heartbeat
 
 ```python
 # Subscriber received response json
 {
     "msg" : "hello, world", # published message content
-    "msg_id" : 1 # published message associated id
+    "mid" : 1 # published message associated id
 }
 
 # Publisher received response json
@@ -108,6 +151,7 @@ $ go doc github.com/Terry-Mao/gopush2
 Alternatively, you can [gopush2](http://go.pkgdoc.org/github.com/Terry-Mao/gopush2).
 
 ## TODO
+  * Use redis to store the message
   * Add tcp support
   * Add more test
   * Add test case and examples

@@ -21,6 +21,7 @@ type SubscriberStats struct {
 	AddedMessage   int64 // subscribers total added message number
 	DeletedMessage int64 // subscribers total deleted message number
 	ExpiredMessage int64 // subscribers total expired message number
+	FailedMessage  int64 // subscribers total failed message number
 	SentMessage    int64 // subscribers total sent message number
 	TotalConn      int64 // subscribers total connected number
 	CurConn        int64 // subscriber current connected number
@@ -69,6 +70,11 @@ func (s *SubscriberStats) IncrDeletedMessage() {
 // increment subscriber sent message
 func (s *SubscriberStats) IncrSentMessage() {
 	atomic.AddInt64(&s.SentMessage, 1)
+}
+
+// increment subscriber failed message
+func (s *SubscriberStats) IncrFailedMessage() {
+	atomic.AddInt64(&s.FailedMessage, 1)
 }
 
 // increment subscriber expired message
@@ -187,6 +193,7 @@ func (s *SubscriberStats) Stats() []byte {
 	res["added_message"] = s.AddedMessage
 	res["deleted_message"] = s.DeletedMessage
 	res["expired_message"] = s.ExpiredMessage
+	res["failed_message"] = s.FailedMessage
 	res["sent_message"] = s.SentMessage
 	res["total_conn"] = s.TotalConn
 	res["cur_conn"] = s.CurConn
@@ -215,7 +222,7 @@ func jsonRes(res map[string]interface{}) []byte {
 	return strJson
 }
 
-func Stat(w http.ResponseWriter, r *http.Request) {
+func StatHandle(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		http.Error(w, "Method Not Allowed", 405)
 		return

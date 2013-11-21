@@ -30,6 +30,8 @@ type Config struct {
 	MaxSubscriberPerKey int    `json:"max_subscriber_per_key"`
 	TCPKeepAlive        int    `json:"tcp_keepalive"`
 	ChannelBucket       int    `json:"channel_bucket"`
+    ChannelType         int    `json:"channel_type"`
+    HeartbeatSec        int    `json:"heartbeat_sec"`
 	Debug               int    `json:"debug"`
 }
 
@@ -55,6 +57,8 @@ func New(file string) (*Config, error) {
 		MaxProcs:            runtime.NumCPU(),
 		TCPKeepAlive:        1,
 		ChannelBucket:       16,
+        ChannelType:         0,
+        HeartbeatSec:        30,
 		Debug:               0,
 	}
 

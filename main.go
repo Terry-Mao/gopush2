@@ -44,7 +44,7 @@ func main() {
 	// Set max routine
 	runtime.GOMAXPROCS(Conf.MaxProcs)
 	// create channel
-	channel = NewChannel()
+	channel = NewChannelList()
 	Log.Printf("gopush2 service start.")
 	// start stats
 	StartStats()
