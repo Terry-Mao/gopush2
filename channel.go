@@ -134,6 +134,13 @@ func NewChannelList() *ChannelList {
 		l.channels = append(l.channels, c)
 	}
 
+	if Conf.ChannelType == 2 {
+		if err := InitRedisChannel(); err != nil {
+			Log.Printf("init redis channle failed (%s)", err.Error())
+			panic(err)
+		}
+	}
+
 	return l
 }
 
