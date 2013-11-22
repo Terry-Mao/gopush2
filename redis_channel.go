@@ -1,9 +1,18 @@
 package main
 
 import (
+	"errors"
+	"github.com/Terry-Mao/gopush2/hash"
+	"github.com/garyburd/redigo/redis"
 	"net"
 	"sync"
 	"time"
+)
+
+var (
+	ConfigRedisErr = errors.New("redis config not set")
+	redisPool      map[string]*redis.Pool
+	redisHash      *hash.Ketama
 )
 
 type RedisChannel struct {
@@ -15,6 +24,33 @@ type RedisChannel struct {
 	expire int64
 	// Max message stored number
 	MaxMessage int
+}
+
+// Init redis channel, such as init redis pool, init consistent hash ring
+func InitRedisChannel() error {
+	if Conf.Redis == nil || len(Conf.Redis) == 0 {
+		return ConfigRedisErr
+	}
+
+	// redis pool
+	for n, c := range Conf.Redis {
+		redisPool[n] = &redis.Pool{
+			MaxIdle:     c.Pool,
+			IdleTimeout: time.Duration(c.Timeout) * time.Second,
+			Dial: func() (redis.Conn, error) {
+				conn, err := redis.Dial(c.Network, c.Addr)
+				if err != nil {
+					Log.Printf("redis.Dial(\"%s\", \"%s\") failed (%s)", c.Network, c.Addr, err.Error())
+				}
+				return conn, err
+			},
+		}
+	}
+
+	// consistent hashing
+	redisHash = hash.NewKetama(len(redisPool), 255)
+
+	return nil
 }
 
 // New a redis message stored channel
@@ -29,10 +65,28 @@ func NewRedisChannel(key string) *RedisChannel {
 }
 
 // PushMsg implements the Channel PushMsg method.
-func (c *RedisChannel) PushMsg(msg string, expire int64, key string) error {
+func (c *RedisChannel) PushMsg(m *Message, key string) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	// send message to each conn when message id > conn last message id
+	for conn, mid := range c.conn {
+		// ignore message cause it's id less than mid
+		if mid >= m.MsgID {
+			Log.Printf("device %s: ignore send message : %d, the last message id : %d", key, m.MsgID, mid)
+			continue
+		}
+
+		if err := subRetWrite(conn, m.Msg, m.MsgID, key); err != nil {
+			subscriberStats.IncrFailedMessage()
+			Log.Printf("subRetWrite() failed (%s)", err.Error())
+			continue
+		}
+
+		// if succeed, update the last message id
+		c.conn[conn] = m.MsgID
+		subscriberStats.IncrSentMessage()
+		Log.Printf("push message \"%s\":%d to device %s", m.Msg, m.MsgID, key)
+	}
 
 	return nil
 }
@@ -55,7 +109,7 @@ func (c *RedisChannel) AddConn(conn net.Conn, mid int64, key string) error {
 	// check exceed the maxsubscribers
 	if len(c.conn)+1 > Conf.MaxSubscriberPerKey {
 		c.mutex.Unlock()
-		return ErrMaxConn
+		return MaxConnErr
 	}
 
 	Log.Printf("add conn for device %s", key)
@@ -104,17 +158,24 @@ func (c *RedisChannel) Timeout() bool {
 
 // Close implements the Channel Close method.
 func (c *RedisChannel) Close() error {
-	var retErr error
-
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
 	for conn, _ := range c.conn {
 		if err := conn.Close(); err != nil {
-			retErr = err
+			// ignore close error
 			Log.Printf("conn.Close() failed (%s)", err.Error())
 		}
 	}
 
-	return retErr
+	return nil
+}
+
+func getRedisPool(key string) *redis.Pool {
+	c, ok := redisPool[redisHash.Node(key)]
+	if !ok {
+		return nil
+	}
+
+	return c
 }

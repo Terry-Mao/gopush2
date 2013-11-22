@@ -16,23 +16,31 @@ func init() {
 	flag.StringVar(&ConfFile, "c", "./gopush2.conf", " set gopush2 config file path")
 }
 
+type RedisConfig struct {
+	Network string `json:"network"`
+	Addr    string `json:"addr"`
+	Timeout int    `json:"timeout"`
+	Pool    int    `json:"pool"`
+}
+
 type Config struct {
-	Addr                string `json:"addr"`
-	Port                int    `json:"port"`
-	AdminAddr           string `json:"admin_addr"`
-	AdminPort           int    `json:"admin_port"`
-	Log                 string `json:"log"`
-	MessageExpireSec    int64  `json:"message_expire_sec"`
-	ChannelExpireSec    int64  `json:"channel_expire_sec"`
-	MaxStoredMessage    int    `json:"max_stored_message"`
-	MaxProcs            int    `json:"max_procs"`
-	MaxSubscriberPerKey int    `json:"max_subscriber_per_key"`
-	TCPKeepAlive        int    `json:"tcp_keepalive"`
-	ChannelBucket       int    `json:"channel_bucket"`
-	ChannelType         int    `json:"channel_type"`
-	HeartbeatSec        int    `json:"heartbeat_sec"`
-	Auth                int    `json:"auth"`
-	Debug               int    `json:"debug"`
+	Addr                string                  `json:"addr"`
+	Port                int                     `json:"port"`
+	AdminAddr           string                  `json:"admin_addr"`
+	AdminPort           int                     `json:"admin_port"`
+	Log                 string                  `json:"log"`
+	MessageExpireSec    int64                   `json:"message_expire_sec"`
+	ChannelExpireSec    int64                   `json:"channel_expire_sec"`
+	MaxStoredMessage    int                     `json:"max_stored_message"`
+	MaxProcs            int                     `json:"max_procs"`
+	MaxSubscriberPerKey int                     `json:"max_subscriber_per_key"`
+	TCPKeepAlive        int                     `json:"tcp_keepalive"`
+	ChannelBucket       int                     `json:"channel_bucket"`
+	ChannelType         int                     `json:"channel_type"`
+	HeartbeatSec        int                     `json:"heartbeat_sec"`
+	Auth                int                     `json:"auth"`
+	Redis               map[string]*RedisConfig `json:"redis"`
+	Debug               int                     `json:"debug"`
 }
 
 // get a config
@@ -60,6 +68,7 @@ func New(file string) (*Config, error) {
 		ChannelType:         0,
 		HeartbeatSec:        30,
 		Auth:                1,
+		Redis:               nil,
 		Debug:               0,
 	}
 

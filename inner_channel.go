@@ -46,7 +46,7 @@ func (c *InnerChannel) SendMsg(conn net.Conn, mid int64, key string) error {
 		m, ok := n.Member.(*Message)
 		if !ok {
 			// never happen
-			panic(ErrAssertType)
+			panic(AssertTypeErr)
 		}
 
 		// check message expired
@@ -78,7 +78,7 @@ func (c *InnerChannel) PushMsg(m *Message, key string) error {
 	if m.Expired() {
 		subscriberStats.IncrExpiredMessage()
 		Log.Printf("device %s: message %d has already expired", key, m.MsgID)
-		return ErrMsgExpired
+		return MsgExpiredErr
 	}
 
 	// check exceed the max message length
@@ -104,7 +104,6 @@ func (c *InnerChannel) PushMsg(m *Message, key string) error {
 	// send message to all the clients
 	for conn, _ := range c.conn {
 		if err := subRetWrite(conn, m.Msg, m.MsgID, key); err != nil {
-			// remove exists conn
 			subscriberStats.IncrFailedMessage()
 			Log.Printf("subRetWrite() failed (%s)", err.Error())
 			continue
@@ -124,7 +123,7 @@ func (c *InnerChannel) AddConn(conn net.Conn, mid int64, key string) error {
 	subscriberStats.IncrConn()
 	// check exceed the maxsubscribers
 	if len(c.conn)+1 > Conf.MaxSubscriberPerKey {
-		return ErrMaxConn
+		return MaxConnErr
 	}
 
 	Log.Printf("add conn for device %s", key)
@@ -149,7 +148,7 @@ func (c *InnerChannel) AddToken(token string, key string) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	if _, ok := c.token[token]; ok {
-		return ErrTokenExist
+		return TokenExistErr
 	}
 
 	// token only used once
@@ -163,7 +162,7 @@ func (c *InnerChannel) AuthToken(token string) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	if _, ok := c.token[token]; !ok {
-		return ErrAuthToken
+		return AuthTokenErr
 	}
 
 	// token only used once
@@ -184,19 +183,17 @@ func (c *InnerChannel) Timeout() bool {
 
 // Close implements the Channel Close method.
 func (c *InnerChannel) Close() error {
-	var retErr error
-
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
 	for conn, _ := range c.conn {
 		if err := conn.Close(); err != nil {
-			retErr = err
+			// ignore close error
 			Log.Printf("conn.Close() failed (%s)", err.Error())
 		}
 	}
 
-	return retErr
+	return nil
 }
 
 // subRetWrite json encoding the message and write to the conn.

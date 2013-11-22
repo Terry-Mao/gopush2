@@ -1,4 +1,4 @@
-package mmhash
+package hash
 
 import (
 	"strconv"

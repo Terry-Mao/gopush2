@@ -1,4 +1,4 @@
-package mmhash
+package hash
 
 func MurMurHash2(data string) uint {
 	l := len(data)

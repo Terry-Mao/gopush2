@@ -2,7 +2,7 @@ package main
 
 import (
 	"errors"
-	"github.com/Terry-Mao/gopush2/mmhash"
+	"github.com/Terry-Mao/gopush2/hash"
 	"net"
 	"sync"
 	"time"
@@ -16,21 +16,21 @@ const (
 
 var (
 	// Exceed the max subscriber per key
-	ErrMaxConn = errors.New("Exceed the max subscriber connection per key")
+	MaxConnErr = errors.New("Exceed the max subscriber connection per key")
 	// Assection type failed
-	ErrAssertType = errors.New("Subscriber assert type failed")
+	AssertTypeErr = errors.New("Subscriber assert type failed")
 	// Auth token failed
-	ErrAuthToken = errors.New("Auth token failed")
+	AuthTokenErr = errors.New("Auth token failed")
 	// Token exists
-	ErrTokenExist = errors.New("Token already exist")
+	TokenExistErr = errors.New("Token already exist")
 	// Message expired
-	ErrMsgExpired = errors.New("Message already expired")
+	MsgExpiredErr = errors.New("Message already expired")
 	// Channle not exists
-	ErrChannelNotExist = errors.New("Channle not exist")
+	ChannelNotExistErr = errors.New("Channle not exist")
 	// Channel expired
-	ErrChannelExpired = errors.New("Channel expired")
+	ChannelExpiredErr = errors.New("Channel expired")
 	// Channle type unknown
-	ErrChannelType = errors.New("Channle type unknown")
+	ChannelTypeErr = errors.New("Channle type unknown")
 )
 
 // The Message struct
@@ -50,7 +50,7 @@ func (m *Message) Expired() bool {
 // The subscriber interface
 type Channel interface {
 	// PushMsg push a message to the subscriber.
-	PushMsg(msg *Message, key string) error
+	PushMsg(m *Message, key string) error
 	// SendMsg send messages which id greate than the request id to the subscriber.
 	// net.Conn write failed will return errors.
 	SendMsg(conn net.Conn, mid int64, key string) error
@@ -104,7 +104,7 @@ func NewChannelList() *ChannelList {
 
 // get a bucket from channel
 func (l *ChannelList) bucket(key string) *channelBucket {
-	idx := mmhash.MurMurHash2(key) & uint(Conf.ChannelBucket-1)
+	idx := hash.MurMurHash2(key) & uint(Conf.ChannelBucket-1)
 	return l.channels[idx]
 }
 
@@ -138,7 +138,7 @@ func (l *ChannelList) New(key string) (Channel, error) {
 			*/
 		} else {
 			Log.Printf("unknown channel type : %d", Conf.ChannelType)
-			return nil, ErrChannelType
+			return nil, ChannelTypeErr
 		}
 
 		b.data[key] = c
@@ -161,7 +161,7 @@ func (l *ChannelList) Get(key string) (Channel, error) {
 	defer b.mutex.Unlock()
 
 	if c, ok = b.data[key]; !ok {
-		return nil, ErrChannelNotExist
+		return nil, ChannelNotExistErr
 	} else {
 		// check expired
 		if c.Timeout() {
@@ -172,7 +172,7 @@ func (l *ChannelList) Get(key string) (Channel, error) {
 				return nil, err
 			}
 
-			return nil, ErrChannelExpired
+			return nil, ChannelExpiredErr
 		}
 	}
 

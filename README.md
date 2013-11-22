@@ -114,6 +114,14 @@ a simple javascript examples
   "channel_type": 1, # the channel type (1: in-process store message, 2: redis store message)
   "heartbeat_sec": 30, # the server receive heartbeat time second (client send heartbeat to server, then reply to client)
   "auth": 1, # the channel need auth (1: yes, 0: no)
+  "redis": { # the redis pool, name must start with "node$n", such node1, node2, node3...
+    "node1": {
+      "network": "tcp",
+      "addr": "10.20.216.122:6379",
+      "timeout": 28800,
+      "pool": 50
+    }
+  },
   "debug": 1 # use test client, http://xx:xx/client (1: open, 0: close)
 }
 ```
