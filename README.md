@@ -53,7 +53,7 @@ $ nohup ./gopush2 -c ./gopush2.conf 2>&1 >> ./panic.log &
 $ curl http://localhost:8080/ch?key=Terry-Mao\&token=test
 # open http://localhost:8080/client in browser (modify the gopush2.conf, set debug to 1)
 # you can use curl
-$ curl -d "test" http://localhost:8080/pub?key=Terry-Mao\&expire=30
+$ curl -d "test" http://localhost:8080/pub?key=Terry-Mao\&expire=30\&mid=1
 # then your browser will alert the "message"
 # open http://localhost:8080/stat?type=memory in browser to get memstats(type: memory, server, channel, subscriber, golang, config)
 ```
@@ -133,7 +133,7 @@ a simple javascript examples
  # The subscriber then block, until a message published to the sub key or receive a server heartbeat
  
  # 4
- # Post to http://localhost:port/pub?key=xxx&expire=30, the message write to http body (the url query field "expire" means message expired after 30 second)
+ # Post to http://localhost:port/pub?key=xxx&expire=30&mid=1, the message write to http body (the url query field "expire" means message expired after 30 second, mid(message id) is control by your app)
 
  # 5
  # If any error, gopush2 close the socket, client need to retry connect
@@ -143,6 +143,24 @@ a simple javascript examples
 ```
 
 ```python
+# Return code
+# internal failed
+# retInternalErr = 65535
+# param error
+# retParamErr = 65534
+# ok
+# retOK = 0
+# create channel failed
+# retCreateChannel = 1
+# add channel failed
+# retAddChannle = 2
+# get channel failed
+# retGetChannel = 3
+# add token failed
+# retAddToken = 4
+# message push failed
+# retPushMsg = 5
+
 # Subscriber received response json
 {
     "msg" : "hello, world", # published message content
@@ -151,8 +169,14 @@ a simple javascript examples
 
 # Publisher received response json
 {
-    "ret" : 0, # return code (0: succeed, 65535: internal error)
-    "msg" : "ok" # return message ("ok" returned if succeed, or detail error message)
+    "ret" : 0, # return code 
+    "msg" : "ok" # return error message
+}
+
+# Create channel response json
+{
+   "ret" : 0, # return code
+   "msg" : "ok" # return error message
 }
 ```
 
