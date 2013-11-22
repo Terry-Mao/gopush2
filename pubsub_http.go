@@ -27,6 +27,8 @@ const (
 	retGetChannel = 3
 	// add token failed
 	retAddToken = 4
+	// message push failed
+	retPushMsg = 5
 )
 
 func StartHttp() error {
@@ -94,7 +96,7 @@ func ChannelHandle(w http.ResponseWriter, r *http.Request) {
 	key := params.Get("key")
 	token := params.Get("token")
 	if key == "" || token == "" {
-		if err = retWrite(w, "param error", retParamErr); err != nil {
+		if err := retWrite(w, "param error", retParamErr); err != nil {
 			Log.Printf("retWrite failed (%s)", err.Error())
 		}
 
@@ -134,8 +136,8 @@ func PublishHandle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := r.URL.Query()
+	// get pub message key
 	key := params.Get("key")
-	//TODO auth
 	// get the expired sec
 	expireStr := params.Get("expire")
 	expire, err := strconv.ParseInt(expireStr, 10, 64)
@@ -145,6 +147,17 @@ func PublishHandle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	expire = time.Now().UnixNano() + expire*Second
+	// get message id
+	midStr := params.Get("mid")
+	mid, err := strconv.ParseInt(midStr, 10, 64)
+	if err != nil {
+		if err = retWrite(w, "param error", retParamErr); err != nil {
+			Log.Printf("retWrite failed (%s)", err.Error())
+		}
+
+		return
+	}
+
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		if err = retWrite(w, "read http body error", retInternalErr); err != nil {
@@ -164,8 +177,11 @@ func PublishHandle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = c.PushMsg(string(body), expire, key); err != nil {
+	if err = c.PushMsg(&Message{Msg: string(body), Expire: expire, MsgID: mid}, key); err != nil {
 		Log.Printf("device %s: push message failed (%s)", key, err.Error())
+		if err = retWrite(w, "push msg failed", retPushMsg); err != nil {
+			Log.Printf("pubRetWrite() failed (%s)", err.Error())
+		}
 		return
 	}
 
@@ -193,7 +209,7 @@ func SubscribeHandle(ws *websocket.Conn) {
 	heartbeat := Conf.HeartbeatSec
 	heartbeatStr := params.Get("heartbeat")
 	if heartbeatStr != "" {
-		i, err := strconv.Atoi(heartbeatStr, 10, 32)
+		i, err := strconv.Atoi(heartbeatStr)
 		if err != nil {
 			Log.Printf("heartbeat argument error (%s)", err.Error())
 			return
@@ -214,8 +230,16 @@ func SubscribeHandle(ws *websocket.Conn) {
 	// fetch subscriber from the channel
 	c, err := channel.Get(key)
 	if err != nil {
-		Log.Printf("device %s: can't get a channel (%s)", key, err.Error())
-		return
+		if Conf.Auth == 0 {
+			c, err = channel.New(key)
+			if err != nil {
+				Log.Printf("device %s: can't create channle", key)
+				return
+			}
+		} else {
+			Log.Printf("device %s: can't get a channel (%s)", key, err.Error())
+			return
+		}
 	}
 
 	// auth
@@ -224,12 +248,12 @@ func SubscribeHandle(ws *websocket.Conn) {
 			Log.Printf("device %s: auth token failed \"%s\" (%s)", key, token, err.Error())
 			return
 		}
+	}
 
-		// add a conn to the channel
-		if err = c.AddConn(ws, mid, key); err != nil {
-			Log.Printf("device %s: add conn failed (%s)", key, err.Error())
-			return
-		}
+	// add a conn to the channel
+	if err = c.AddConn(ws, mid, key); err != nil {
+		Log.Printf("device %s: add conn failed (%s)", key, err.Error())
+		return
 	}
 
 	// remove exists conn

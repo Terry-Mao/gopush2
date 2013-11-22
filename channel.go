@@ -39,12 +39,18 @@ type Message struct {
 	Msg string
 	// Message expired unixnano
 	Expire int64
+	// Message id
+	MsgID int64
+}
+
+func (m *Message) Expired() bool {
+	return time.Now().UnixNano() > m.Expire
 }
 
 // The subscriber interface
 type Channel interface {
 	// PushMsg push a message to the subscriber.
-	PushMsg(msg string, expire int64, key string) error
+	PushMsg(msg *Message, key string) error
 	// SendMsg send messages which id greate than the request id to the subscriber.
 	// net.Conn write failed will return errors.
 	SendMsg(conn net.Conn, mid int64, key string) error

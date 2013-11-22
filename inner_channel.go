@@ -41,7 +41,6 @@ func NewInnerChannel() *InnerChannel {
 func (c *InnerChannel) SendMsg(conn net.Conn, mid int64, key string) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	now := time.Now().UnixNano()
 	// find the next node
 	for n := c.message.Greate(mid); n != nil; n = n.Next() {
 		m, ok := n.Member.(*Message)
@@ -51,7 +50,7 @@ func (c *InnerChannel) SendMsg(conn net.Conn, mid int64, key string) error {
 		}
 
 		// check message expired
-		if m.Expire >= now {
+		if m.Expired() {
 			if err := subRetWrite(conn, m.Msg, n.Score, key); err != nil {
 				subscriberStats.IncrFailedMessage()
 				Log.Printf("subRetWrite() failed (%s)", err.Error())
@@ -71,15 +70,14 @@ func (c *InnerChannel) SendMsg(conn net.Conn, mid int64, key string) error {
 }
 
 // PushMsg implements the Channel PushMsg method.
-func (c *InnerChannel) PushMsg(msg string, expire int64, key string) error {
+func (c *InnerChannel) PushMsg(m *Message, key string) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	subscriberStats.IncrAddedMessage()
-	now := time.Now().UnixNano()
 	// check message expired
-	if now >= expire {
+	if m.Expired() {
 		subscriberStats.IncrExpiredMessage()
-		Log.Printf("device %s: message %d has already expired now(%d) >= expire(%d)", key, expire, now, expire)
+		Log.Printf("device %s: message %d has already expired", key, m.MsgID)
 		return ErrMsgExpired
 	}
 
@@ -98,19 +96,14 @@ func (c *InnerChannel) PushMsg(msg string, expire int64, key string) error {
 		subscriberStats.IncrDeletedMessage()
 	}
 
-	for {
-		// if has exists node, sleep and retry
-		err := c.message.Insert(now, &Message{Msg: msg, Expire: expire})
-		if err != nil {
-			now++
-		}
-
-		break
+	err := c.message.Insert(m.MsgID, m)
+	if err != nil {
+		return err
 	}
 
 	// send message to all the clients
 	for conn, _ := range c.conn {
-		if err := subRetWrite(conn, msg, now, key); err != nil {
+		if err := subRetWrite(conn, m.Msg, m.MsgID, key); err != nil {
 			// remove exists conn
 			subscriberStats.IncrFailedMessage()
 			Log.Printf("subRetWrite() failed (%s)", err.Error())
@@ -118,7 +111,7 @@ func (c *InnerChannel) PushMsg(msg string, expire int64, key string) error {
 		}
 
 		subscriberStats.IncrSentMessage()
-		Log.Printf("push message \"%s\":%d to device %s", msg, now, key)
+		Log.Printf("push message \"%s\":%d to device %s", m.Msg, m.MsgID, key)
 	}
 
 	return nil
