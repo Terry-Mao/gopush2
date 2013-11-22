@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"github.com/Terry-Mao/gopush2/hash"
 	"github.com/garyburd/redigo/redis"
 	"net"
@@ -11,6 +12,8 @@ import (
 
 var (
 	ConfigRedisErr = errors.New("redis config not set")
+	RedisNoConnErr = errors.New("can't get a redis conn")
+	RedisDataErr   = errors.New("redis data fatal error")
 	redisPool      map[string]*redis.Pool
 	redisHash      *hash.Ketama
 )
@@ -54,7 +57,7 @@ func InitRedisChannel() error {
 }
 
 // New a redis message stored channel
-func NewRedisChannel(key string) *RedisChannel {
+func NewRedisChannel() *RedisChannel {
 	c := &RedisChannel{}
 	c.mutex = &sync.Mutex{}
 	c.conn = map[net.Conn]int64{}
@@ -76,9 +79,8 @@ func (c *RedisChannel) PushMsg(m *Message, key string) error {
 			continue
 		}
 
-		if err := subRetWrite(conn, m.Msg, m.MsgID, key); err != nil {
+		if err := m.Write(conn, key); err != nil {
 			subscriberStats.IncrFailedMessage()
-			Log.Printf("subRetWrite() failed (%s)", err.Error())
 			continue
 		}
 
@@ -95,9 +97,56 @@ func (c *RedisChannel) PushMsg(m *Message, key string) error {
 func (c *RedisChannel) SendMsg(conn net.Conn, mid int64, key string) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	// get offline message from redis which greate mid
+	// get offline message from redis which greate mid (ZRANGEBYSCORE)
 	// delete the expired message
 	// update the last message id for conn
+	rc := getRedisConn(key)
+	if rc == nil {
+		return RedisNoConnErr
+	}
+
+	defer rc.Close()
+	reply, err := rc.Do("ZRANGEBYSCORE", key, fmt.Sprintf("(%d", mid), -1)
+	if err != nil {
+		Log.Printf("redis(\"HINCRBY\", \"%s\", \"%s\", 1) failed (%s)", key, Conf.Node, err.Error())
+		return err
+	}
+
+	msgs, err := redis.Strings(reply, nil)
+	if err != nil {
+		Log.Printf("redis.Strings() failed (%s)", err.Error())
+		return err
+	}
+
+	for _, msg := range msgs {
+		m, err := NewJsonStrMessage(msg)
+		if err != nil {
+			// drop the message
+			Log.Printf("device %s: can't unmarshal message %s (%s)", key, msg, err.Error())
+			continue
+		}
+
+		if m.Expired() {
+			// drop the message
+			Log.Printf("device %s: message %d expired", key, m.MsgID)
+			continue
+		}
+
+		// won't happen
+		if mid >= m.MsgID {
+			Log.Printf("device %s: ignore send message : %d, the last message id : %d", key, m.MsgID, mid)
+			continue
+		}
+
+		if err := m.Write(conn, key); err != nil {
+			subscriberStats.IncrFailedMessage()
+			continue
+		}
+
+		c.conn[conn] = m.MsgID
+		subscriberStats.IncrSentMessage()
+		Log.Printf("push message \"%s\":%d to device %s", m.Msg, m.MsgID, key)
+	}
 
 	return nil
 }
@@ -118,6 +167,28 @@ func (c *RedisChannel) AddConn(conn net.Conn, mid int64, key string) error {
 	c.mutex.Unlock()
 
 	// store the online state in redis hashes (HINCRBY)
+	rc := getRedisConn(key)
+	if rc == nil {
+		return RedisNoConnErr
+	}
+
+	defer rc.Close()
+	reply, err := rc.Do("HINCRBY", key, Conf.Node, 1)
+	if err != nil {
+		Log.Printf("redis(\"HINCRBY\", \"%s\", \"%s\", 1) failed (%s)", key, Conf.Node, err.Error())
+		return err
+	}
+
+	r, err := redis.Int(reply, nil)
+	if err != nil {
+		Log.Printf("redis.Int() failed (%s)", err.Error())
+		return err
+	}
+
+	if r < 0 {
+		Log.Printf("device %s: redis data fatal error!!!", key)
+		return RedisDataErr
+	}
 
 	return nil
 }
@@ -131,18 +202,83 @@ func (c *RedisChannel) RemoveConn(conn net.Conn, mid int64, key string) error {
 	c.mutex.Unlock()
 
 	// remove the online state in redis hashes (HINCRBY)
+	rc := getRedisConn(key)
+	if rc == nil {
+		return RedisNoConnErr
+	}
+
+	defer rc.Close()
+	reply, err := rc.Do("HINCRBY", key, Conf.Node, -1)
+	if err != nil {
+		Log.Printf("redis(\"HINCRBY\", \"%s\", \"%s\", -1) failed (%s)", key, Conf.Node, err.Error())
+		return err
+	}
+
+	r, err := redis.Int(reply, nil)
+	if err != nil {
+		Log.Printf("redis.Int() failed (%s)", err.Error())
+		return err
+	}
+
+	if r < 0 {
+		Log.Printf("device %s: redis data fatal error!!!", key)
+		return RedisDataErr
+	}
+
 	return nil
 }
 
 // AddToken implements the Channel AddToken method.
 func (c *RedisChannel) AddToken(token string, key string) error {
 	// store the token in redis sets (SADD)
+	conn := getRedisConn(key)
+	if conn == nil {
+		return RedisNoConnErr
+	}
+
+	defer conn.Close()
+	reply, err := conn.Do("SADD", key, token)
+	if err != nil {
+		Log.Printf("redis(\"SADD\", \"%s\", \"%s\") failed (%s)", key, token, err.Error())
+		return err
+	}
+
+	r, err := redis.Int(reply, nil)
+	if err != nil {
+		Log.Printf("redis.Int() failed (%s)", err.Error())
+		return err
+	}
+
+	if r == 0 {
+		Log.Printf("device %s: token %salready exists", key, token)
+		return TokenExistErr
+	}
+
 	return nil
 }
 
 // AuthToken implements the Channel AuthToken method.
-func (c *RedisChannel) AuthToken(token string) error {
+func (c *RedisChannel) AuthToken(token string, key string) error {
 	// remove the token from redis sets (SREM)
+	conn := getRedisConn(key)
+	defer conn.Close()
+	reply, err := conn.Do("SREM", key, token)
+	if err != nil {
+		Log.Printf("c.Do(\"SREM\", \"%s\", \"%s\") failed (%s)", key, token, err.Error())
+		return err
+	}
+
+	r, err := redis.Int(reply, nil)
+	if err != nil {
+		Log.Printf("redis.Int() failed (%s)", err.Error())
+		return err
+	}
+
+	if r == 0 {
+		Log.Printf("device %s: token %s not exist, auth failed", key, token)
+		return AuthTokenErr
+	}
+
 	return nil
 }
 
@@ -171,11 +307,17 @@ func (c *RedisChannel) Close() error {
 	return nil
 }
 
-func getRedisPool(key string) *redis.Pool {
-	c, ok := redisPool[redisHash.Node(key)]
+func getRedisConn(key string) redis.Conn {
+	node := "node1"
+	// if multiple redispool use ketama
+	if len(redisPool) != 1 {
+		node = redisHash.Node(key)
+	}
+
+	p, ok := redisPool[node]
 	if !ok {
 		return nil
 	}
 
-	return c
+	return p.Get()
 }

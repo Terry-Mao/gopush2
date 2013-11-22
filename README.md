@@ -99,10 +99,8 @@ a simple javascript examples
 ## Configuration
 ```python
 {
-  "addr": "127.0.0.1", # the subscriber listen address
-  "port": 8080, # the subscriber listen port
-  "admin_addr": "127.0.0.1", # for the publisher and stat listen address
-  "admin_port": 8080, # for the publisher and stat listen port
+  "addr": "127.0.0.1:8080", # the subscriber listen address
+  "admin_addr": "127.0.0.1:8080", # for the publisher and stat listen address
   "log": "/tmp/gopush.log", # the gopush2 log file path
   "message_expire_sec": 7200, # the default message expire second
   "channel_expire_sec": 60, # the default channel expire second

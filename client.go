@@ -9,7 +9,7 @@ import (
 func Client(w http.ResponseWriter, r *http.Request) {
 	addr := Conf.Addr
 	if addr == "" {
-		addr = "localhost"
+		addr = "localhost:8080"
 	}
 
 	html := fmt.Sprintf(`
@@ -19,7 +19,7 @@ func Client(w http.ResponseWriter, r *http.Request) {
     <script type="text/javascript" src="http://img3.douban.com/js/packed_jquery.min6301986802.js" async="true"></script>
     <script type="text/javascript">
         var sock = null;
-        var wsuri = "ws://%s:%d/sub?key=Terry-Mao&mid=0&token=test";
+        var wsuri = "ws://%s/sub?key=Terry-Mao&mid=0&token=test";
 
         window.onload = function() {
             try
@@ -52,6 +52,6 @@ func Client(w http.ResponseWriter, r *http.Request) {
         setInterval("sock.send('')", 3000);
 </script>
 <h1>Push Service </h1>
-`, addr, Conf.Port)
+`, addr)
 	io.WriteString(w, html)
 }

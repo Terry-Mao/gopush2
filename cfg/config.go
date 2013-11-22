@@ -24,10 +24,9 @@ type RedisConfig struct {
 }
 
 type Config struct {
+	Node                string                  `json:"node"`
 	Addr                string                  `json:"addr"`
-	Port                int                     `json:"port"`
 	AdminAddr           string                  `json:"admin_addr"`
-	AdminPort           int                     `json:"admin_port"`
 	Log                 string                  `json:"log"`
 	MessageExpireSec    int64                   `json:"message_expire_sec"`
 	ChannelExpireSec    int64                   `json:"channel_expire_sec"`
@@ -52,10 +51,9 @@ func New(file string) (*Config, error) {
 	}
 
 	cf := &Config{
+		Node:      "gopush2-1",
 		Addr:      "localhost",
-		Port:      8080,
 		AdminAddr: "localhost",
-		AdminPort: 8080,
 		//Pprof:               1,
 		MessageExpireSec:    10800,  // 3 hour
 		ChannelExpireSec:    604800, // 24 * 7 hour

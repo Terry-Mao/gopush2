@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"github.com/Terry-Mao/gopush2/skiplist"
 	"net"
 	"sync"
@@ -51,9 +50,8 @@ func (c *InnerChannel) SendMsg(conn net.Conn, mid int64, key string) error {
 
 		// check message expired
 		if m.Expired() {
-			if err := subRetWrite(conn, m.Msg, n.Score, key); err != nil {
+			if err := m.Write(conn, key); err != nil {
 				subscriberStats.IncrFailedMessage()
-				Log.Printf("subRetWrite() failed (%s)", err.Error())
 				return err
 			}
 
@@ -103,9 +101,8 @@ func (c *InnerChannel) PushMsg(m *Message, key string) error {
 
 	// send message to all the clients
 	for conn, _ := range c.conn {
-		if err := subRetWrite(conn, m.Msg, m.MsgID, key); err != nil {
+		if err := m.Write(conn, key); err != nil {
 			subscriberStats.IncrFailedMessage()
-			Log.Printf("subRetWrite() failed (%s)", err.Error())
 			continue
 		}
 
@@ -158,7 +155,7 @@ func (c *InnerChannel) AddToken(token string, key string) error {
 }
 
 // AuthToken implements the Channel AuthToken method.
-func (c *InnerChannel) AuthToken(token string) error {
+func (c *InnerChannel) AuthToken(token string, key string) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	if _, ok := c.token[token]; !ok {
@@ -191,28 +188,6 @@ func (c *InnerChannel) Close() error {
 			// ignore close error
 			Log.Printf("conn.Close() failed (%s)", err.Error())
 		}
-	}
-
-	return nil
-}
-
-// subRetWrite json encoding the message and write to the conn.
-func subRetWrite(conn net.Conn, msg string, msgID int64, key string) error {
-	res := map[string]interface{}{}
-	res["msg"] = msg
-	res["msg_id"] = msgID
-
-	strJson, err := json.Marshal(res)
-	if err != nil {
-		Log.Printf("json.Marshal(\"%v\") failed", res)
-		return err
-	}
-
-	respJson := string(strJson)
-	Log.Printf("device key: sub send to client: %s", respJson)
-	if _, err := conn.Write(strJson); err != nil {
-		Log.Printf("conn.Write(\"%s\") failed (%s)", respJson, err.Error())
-		return err
 	}
 
 	return nil

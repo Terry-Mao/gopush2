@@ -3,7 +3,6 @@ package main
 import (
 	"code.google.com/p/go.net/websocket"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -39,7 +38,7 @@ func StartHttp() error {
 	}
 
 	// admin
-	if Conf.AdminAddr != Conf.Addr || Conf.AdminPort != Conf.Port {
+	if Conf.AdminAddr != Conf.Addr {
 		go func() {
 			adminServeMux := http.NewServeMux()
 			// publish
@@ -51,8 +50,9 @@ func StartHttp() error {
 				adminServeMux.HandleFunc("/ch", ChannelHandle)
 			}
 
-			err := http.ListenAndServe(fmt.Sprintf("%s:%d", Conf.AdminAddr, Conf.AdminPort), adminServeMux)
+			err := http.ListenAndServe(Conf.AdminAddr, adminServeMux)
 			if err != nil {
+				Log.Printf("http.ListenAdServe(\"%s\") failed (%s)", Conf.AdminAddr, err.Error())
 				panic(err)
 			}
 		}()
@@ -64,19 +64,18 @@ func StartHttp() error {
 		}
 	}
 
-	a := fmt.Sprintf("%s:%d", Conf.Addr, Conf.Port)
 	if Conf.TCPKeepAlive == 1 {
 		server := &http.Server{}
-		l, err := net.Listen("tcp", a)
+		l, err := net.Listen("tcp", Conf.Addr)
 		if err != nil {
-			Log.Printf("net.Listen(\"tcp\", \"%s\") failed (%s)", a, err.Error())
+			Log.Printf("net.Listen(\"tcp\", \"%s\") failed (%s)", Conf.Addr, err.Error())
 			return err
 		}
 
 		return server.Serve(&KeepAliveListener{Listener: l})
 	} else {
-		if err := http.ListenAndServe(a, nil); err != nil {
-			Log.Printf("http.ListenAdServe(\"%s\") failed (%s)", a, err.Error())
+		if err := http.ListenAndServe(Conf.Addr, nil); err != nil {
+			Log.Printf("http.ListenAdServe(\"%s\") failed (%s)", Conf.Addr, err.Error())
 			return err
 		}
 	}
@@ -244,7 +243,7 @@ func SubscribeHandle(ws *websocket.Conn) {
 
 	// auth
 	if Conf.Auth == 1 {
-		if err = c.AuthToken(token); err != nil {
+		if err = c.AuthToken(token, key); err != nil {
 			Log.Printf("device %s: auth token failed \"%s\" (%s)", key, token, err.Error())
 			return
 		}
