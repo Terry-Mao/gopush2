@@ -14,8 +14,12 @@ var (
 	ConfigRedisErr = errors.New("redis config not set")
 	RedisNoConnErr = errors.New("can't get a redis conn")
 	RedisDataErr   = errors.New("redis data fatal error")
-	redisPool      map[string]*redis.Pool
+	redisPool      = map[string]*redis.Pool{}
 	redisHash      *hash.Ketama
+
+	msgRedisPre    = "m_"
+	onlineRedisPre = "o_"
+	tokenRedisPre  = "t_"
 )
 
 type RedisChannel struct {
@@ -116,10 +120,10 @@ func (c *RedisChannel) SendMsg(conn net.Conn, mid int64, key string) error {
 	Log.Printf("add conn for device %s", key)
 	// save the last push message id
 	c.conn[conn] = mid
-	reply, err := rc.Do("ZRANGEBYSCORE", key, midStr, -1)
+	reply, err := rc.Do("ZRANGEBYSCORE", msgRedisPre+key, midStr, -1)
 	if err != nil {
 		delete(c.conn, conn)
-		Log.Printf("redis(\"ZRANGEBYSCORE\", \"%s\", \"%s\", 1) failed (%s)", key, midStr, err.Error())
+		Log.Printf("redis(\"ZRANGEBYSCORE\", \"%s\", \"%s\", 1) failed (%s)", msgRedisPre+key, midStr, err.Error())
 		return err
 	}
 
@@ -173,13 +177,13 @@ func (c *RedisChannel) AddConn(conn net.Conn, mid int64, key string) error {
 	}
 
 	defer rc.Close()
-	_, err := rc.Do("HINCRBY", key, Conf.Node, 1)
+	_, err := rc.Do("HINCRBY", onlineRedisPre+key, Conf.Node, 1)
 	if err != nil {
 		// TODO drop the connection from map, RemoveConn won't call if err
 		c.mutex.Lock()
 		delete(c.conn, conn)
 		c.mutex.Unlock()
-		Log.Printf("redis(\"HINCRBY\", \"%s\", \"%s\", 1) failed (%s)", key, Conf.Node, err.Error())
+		Log.Printf("redis(\"HINCRBY\", \"%s\", \"%s\", 1) failed (%s)", onlineRedisPre+key, Conf.Node, err.Error())
 		return err
 	}
 
@@ -201,9 +205,9 @@ func (c *RedisChannel) RemoveConn(conn net.Conn, mid int64, key string) error {
 	}
 
 	defer rc.Close()
-	_, err := rc.Do("HINCRBY", key, Conf.Node, -1)
+	_, err := rc.Do("HINCRBY", onlineRedisPre+key, Conf.Node, -1)
 	if err != nil {
-		Log.Printf("redis(\"HINCRBY\", \"%s\", \"%s\", -1) failed (%s)", key, Conf.Node, err.Error())
+		Log.Printf("redis(\"HINCRBY\", \"%s\", \"%s\", -1) failed (%s)", onlineRedisPre+key, Conf.Node, err.Error())
 		return err
 	}
 
@@ -219,9 +223,9 @@ func (c *RedisChannel) AddToken(token string, key string) error {
 	}
 
 	defer conn.Close()
-	reply, err := conn.Do("SADD", key, token)
+	reply, err := conn.Do("SADD", tokenRedisPre+key, token)
 	if err != nil {
-		Log.Printf("redis(\"SADD\", \"%s\", \"%s\") failed (%s)", key, token, err.Error())
+		Log.Printf("redis(\"SADD\", \"%s\", \"%s\") failed (%s)", tokenRedisPre+key, token, err.Error())
 		return err
 	}
 
@@ -244,9 +248,9 @@ func (c *RedisChannel) AuthToken(token string, key string) error {
 	// remove the token from redis sets (SREM)
 	conn := getRedisConn(key)
 	defer conn.Close()
-	reply, err := conn.Do("SREM", key, token)
+	reply, err := conn.Do("SREM", tokenRedisPre+key, token)
 	if err != nil {
-		Log.Printf("c.Do(\"SREM\", \"%s\", \"%s\") failed (%s)", key, token, err.Error())
+		Log.Printf("c.Do(\"SREM\", \"%s\", \"%s\") failed (%s)", tokenRedisPre+key, token, err.Error())
 		return err
 	}
 
