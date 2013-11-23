@@ -165,7 +165,6 @@ func (l *ChannelList) New(key string) (Channel, error) {
 	if c, ok = b.data[key]; ok {
 		// refresh the expire time
 		c.SetDeadline(now + Conf.ChannelExpireSec*Second)
-		channelStats.IncrRefreshed()
 		return c, nil
 	} else {
 		if Conf.ChannelType == InnerChannelType {
@@ -178,7 +177,6 @@ func (l *ChannelList) New(key string) (Channel, error) {
 		}
 
 		b.data[key] = c
-		channelStats.IncrCreated()
 	}
 
 	return c, nil
@@ -201,7 +199,6 @@ func (l *ChannelList) Get(key string) (Channel, error) {
 	} else {
 		// check expired
 		if c.Timeout() {
-			channelStats.IncrExpired()
 			Log.Printf("device %s: channle expired", key)
 			delete(b.data, key)
 			if err := c.Close(); err != nil {

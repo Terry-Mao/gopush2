@@ -31,7 +31,6 @@ func NewInnerChannel() *InnerChannel {
 	c.token = map[string]bool{}
 	c.MaxMessage = Conf.MaxStoredMessage
 	c.expire = time.Now().UnixNano() + Conf.ChannelExpireSec*Second
-	subscriberStats.IncrCreated()
 
 	return c
 }
@@ -53,15 +52,12 @@ func (c *InnerChannel) SendMsg(conn net.Conn, mid int64, key string) error {
 		if m.Expired() {
 			// WARN:though the node deleted, can access the next node
 			c.message.Delete(n.Score)
-			subscriberStats.IncrExpiredMessage()
 			Log.Printf("delete the expired message %d for device %s", n.Score, key)
 		} else {
 			if err := m.Write(conn, key); err != nil {
-				subscriberStats.IncrFailedMessage()
 				return err
 			}
 
-			subscriberStats.IncrSentMessage()
 		}
 	}
 
@@ -72,10 +68,8 @@ func (c *InnerChannel) SendMsg(conn net.Conn, mid int64, key string) error {
 func (c *InnerChannel) PushMsg(m *Message, key string) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	subscriberStats.IncrAddedMessage()
 	// check message expired
 	if m.Expired() {
-		subscriberStats.IncrExpiredMessage()
 		Log.Printf("device %s: message %d has already expired", key, m.MsgID)
 		return MsgExpiredErr
 	}
@@ -92,7 +86,6 @@ func (c *InnerChannel) PushMsg(m *Message, key string) error {
 
 		c.message.Delete(n.Score)
 		Log.Printf("device %s: message %d exceed the max message (%d) setting, trim the subscriber", key, n.Score, c.MaxMessage)
-		subscriberStats.IncrDeletedMessage()
 	}
 
 	err := c.message.Insert(m.MsgID, m)
@@ -103,11 +96,9 @@ func (c *InnerChannel) PushMsg(m *Message, key string) error {
 	// send message to all the clients
 	for conn, _ := range c.conn {
 		if err := m.Write(conn, key); err != nil {
-			subscriberStats.IncrFailedMessage()
 			continue
 		}
 
-		subscriberStats.IncrSentMessage()
 		Log.Printf("push message \"%s\":%d to device %s", m.Msg, m.MsgID, key)
 	}
 
@@ -118,7 +109,6 @@ func (c *InnerChannel) PushMsg(m *Message, key string) error {
 func (c *InnerChannel) AddConn(conn net.Conn, mid int64, key string) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	subscriberStats.IncrConn()
 	// check exceed the maxsubscribers
 	if len(c.conn)+1 > Conf.MaxSubscriberPerKey {
 		return MaxConnErr
@@ -134,7 +124,6 @@ func (c *InnerChannel) AddConn(conn net.Conn, mid int64, key string) error {
 func (c *InnerChannel) RemoveConn(conn net.Conn, mid int64, key string) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	subscriberStats.DecrConn()
 	Log.Printf("remove conn for device %s", key)
 	delete(c.conn, conn)
 

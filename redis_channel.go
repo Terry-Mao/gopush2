@@ -84,13 +84,11 @@ func (c *RedisChannel) PushMsg(m *Message, key string) error {
 		}
 
 		if err := m.Write(conn, key); err != nil {
-			subscriberStats.IncrFailedMessage()
 			continue
 		}
 
 		// if succeed, update the last message id, conn.Write may failed but err == nil(client shutdown or sth else), but the message won't loss till next connect to sub
 		c.conn[conn] = m.MsgID
-		subscriberStats.IncrSentMessage()
 		Log.Printf("push message \"%s\":%d to device %s", m.Msg, m.MsgID, key)
 	}
 
@@ -149,13 +147,11 @@ func (c *RedisChannel) SendMsg(conn net.Conn, mid int64, key string) error {
 		}
 
 		if err := m.Write(conn, key); err != nil {
-			subscriberStats.IncrFailedMessage()
 			delete(c.conn, conn)
 			return err
 		}
 
 		nmid = m.MsgID
-		subscriberStats.IncrSentMessage()
 		Log.Printf("push message \"%s\":%d to device %s", m.Msg, m.MsgID, key)
 	}
 
@@ -193,7 +189,6 @@ func (c *RedisChannel) AddConn(conn net.Conn, mid int64, key string) error {
 // RemoveConn implements the Channel RemoveConn method.
 func (c *RedisChannel) RemoveConn(conn net.Conn, mid int64, key string) error {
 	c.mutex.Lock()
-	subscriberStats.DecrConn()
 	Log.Printf("remove conn for device %s", key)
 	delete(c.conn, conn)
 	c.mutex.Unlock()

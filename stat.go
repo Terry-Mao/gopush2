@@ -6,92 +6,13 @@ import (
 	"os"
 	"os/user"
 	"runtime"
-	"sync/atomic"
 	"time"
 )
-
-type ChannelStats struct {
-	Created   int64 // channel created number
-	Expired   int64 // channel expired number
-	Refreshed int64 // channel refreshed number
-}
-
-type SubscriberStats struct {
-	Created        int64 // subscriber created number
-	AddedMessage   int64 // subscribers total added message number
-	DeletedMessage int64 // subscribers total deleted message number
-	ExpiredMessage int64 // subscribers total expired message number
-	FailedMessage  int64 // subscribers total failed message number
-	SentMessage    int64 // subscribers total sent message number
-	TotalConn      int64 // subscribers total connected number
-	CurConn        int64 // subscriber current connected number
-}
 
 var (
 	// server
 	startTime int64 // process start unixnano
-	// channel stats
-	channelStats = &ChannelStats{}
-	// subscriber stats
-	subscriberStats = &SubscriberStats{}
 )
-
-// increment channel created number
-func (c *ChannelStats) IncrCreated() {
-	atomic.AddInt64(&c.Created, 1)
-}
-
-// increment channel expired number
-func (c *ChannelStats) IncrExpired() {
-	atomic.AddInt64(&c.Expired, 1)
-
-}
-
-// increment channel refreshed number
-func (c *ChannelStats) IncrRefreshed() {
-	atomic.AddInt64(&c.Refreshed, 1)
-}
-
-// increment subscriber created number
-func (s *SubscriberStats) IncrCreated() {
-	atomic.AddInt64(&s.Created, 1)
-}
-
-// increment subscriber added message
-func (s *SubscriberStats) IncrAddedMessage() {
-	atomic.AddInt64(&s.AddedMessage, 1)
-}
-
-// increment subscriber deleted message
-func (s *SubscriberStats) IncrDeletedMessage() {
-	atomic.AddInt64(&s.DeletedMessage, 1)
-}
-
-// increment subscriber sent message
-func (s *SubscriberStats) IncrSentMessage() {
-	atomic.AddInt64(&s.SentMessage, 1)
-}
-
-// increment subscriber failed message
-func (s *SubscriberStats) IncrFailedMessage() {
-	atomic.AddInt64(&s.FailedMessage, 1)
-}
-
-// increment subscriber expired message
-func (s *SubscriberStats) IncrExpiredMessage() {
-	atomic.AddInt64(&s.ExpiredMessage, 1)
-}
-
-// increment subscriber conn
-func (s *SubscriberStats) IncrConn() {
-	atomic.AddInt64(&s.TotalConn, 1)
-	atomic.AddInt64(&s.CurConn, 1)
-}
-
-// decrment subscriber conn
-func (s *SubscriberStats) DecrConn() {
-	atomic.AddInt64(&s.CurConn, -1)
-}
 
 // start stats, called at process start
 func StartStats() {
@@ -176,31 +97,6 @@ func ServerStats() []byte {
 	return jsonRes(res)
 }
 
-// channel stats
-func (s *ChannelStats) Stats() []byte {
-	res := map[string]interface{}{}
-	res["refreshed"] = s.Refreshed
-	res["created"] = s.Created
-	res["expired"] = s.Expired
-
-	return jsonRes(res)
-}
-
-// subscriber stats
-func (s *SubscriberStats) Stats() []byte {
-	res := map[string]interface{}{}
-	res["created"] = s.Created
-	res["added_message"] = s.AddedMessage
-	res["deleted_message"] = s.DeletedMessage
-	res["expired_message"] = s.ExpiredMessage
-	res["failed_message"] = s.FailedMessage
-	res["sent_message"] = s.SentMessage
-	res["total_conn"] = s.TotalConn
-	res["cur_conn"] = s.CurConn
-
-	return jsonRes(res)
-}
-
 // configuration info
 func ConfigInfo() []byte {
 	strJson, err := json.Marshal(Conf)
@@ -239,10 +135,6 @@ func StatHandle(w http.ResponseWriter, r *http.Request) {
 		res = ServerStats()
 	case "golang":
 		res = GoStats()
-	case "subscriber":
-		res = subscriberStats.Stats()
-	case "channel":
-		res = channelStats.Stats()
 	case "confit":
 		res = ConfigInfo()
 	}
