@@ -135,13 +135,22 @@ func (c *RedisChannel) SendMsg(conn net.Conn, mid int64, key string) error {
 	for _, msg := range msgs {
 		m, err := NewJsonStrMessage(msg)
 		if err != nil {
-			// TODO drop the message
+			// drop the message, can't unmarshal
+			_, err := rc.Do("HDEL", msgRedisPre+key, m.MsgID)
+			if err != nil {
+				Log.Printf("redis(\"HDEL\", \"%s\", %d) failed (%s)", msgRedisPre+key, m.MsgID, err.Error())
+			}
+
 			Log.Printf("device %s: can't unmarshal message %s (%s)", key, msg, err.Error())
 			continue
 		}
 
 		if m.Expired() {
-			// TODO drop the message
+			// drop the message, expired
+			_, err := rc.Do("HDEL", msgRedisPre+key, m.MsgID)
+			if err != nil {
+				Log.Printf("redis(\"HDEL\", \"%s\", %d) failed (%s)", msgRedisPre+key, m.MsgID, err.Error())
+			}
 			Log.Printf("device %s: message %d expired", key, m.MsgID)
 			continue
 		}
@@ -165,7 +174,7 @@ func (c *RedisChannel) AddConn(conn net.Conn, mid int64, key string) error {
 	// store the online state in redis hashes (HINCRBY)
 	rc := getRedisConn(key)
 	if rc == nil {
-		// TODO drop the connection from map, RemoveConn won't call if err
+		// drop the connection from map, RemoveConn won't call if err
 		c.mutex.Lock()
 		delete(c.conn, conn)
 		c.mutex.Unlock()
@@ -175,7 +184,7 @@ func (c *RedisChannel) AddConn(conn net.Conn, mid int64, key string) error {
 	defer rc.Close()
 	_, err := rc.Do("HINCRBY", onlineRedisPre+key, Conf.Node, 1)
 	if err != nil {
-		// TODO drop the connection from map, RemoveConn won't call if err
+		// drop the connection from map, RemoveConn won't call if err
 		c.mutex.Lock()
 		delete(c.conn, conn)
 		c.mutex.Unlock()
