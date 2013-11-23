@@ -84,7 +84,7 @@ func (c *RedisChannel) PushMsg(m *Message, key string) error {
 			continue
 		}
 
-		// if succeed, update the last message id
+		// if succeed, update the last message id, conn.Write may failed but err == nil(client shutdown or sth else), but the message won't loss till next connect to sub
 		c.conn[conn] = m.MsgID
 		subscriberStats.IncrSentMessage()
 		Log.Printf("push message \"%s\":%d to device %s", m.Msg, m.MsgID, key)
@@ -95,25 +95,37 @@ func (c *RedisChannel) PushMsg(m *Message, key string) error {
 
 // SendMsg implements the Channel SendMsg method.
 func (c *RedisChannel) SendMsg(conn net.Conn, mid int64, key string) error {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
 	// get offline message from redis which greate mid (ZRANGEBYSCORE)
 	// delete the expired message
 	// update the last message id for conn
+	nmid := mid
 	rc := getRedisConn(key)
 	if rc == nil {
 		return RedisNoConnErr
 	}
 
 	defer rc.Close()
-	reply, err := rc.Do("ZRANGEBYSCORE", key, fmt.Sprintf("(%d", mid), -1)
+	midStr := fmt.Sprintf("(%d", mid)
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	// check exceed the maxsubscribers
+	if len(c.conn)+1 > Conf.MaxSubscriberPerKey {
+		return MaxConnErr
+	}
+
+	Log.Printf("add conn for device %s", key)
+	// save the last push message id
+	c.conn[conn] = mid
+	reply, err := rc.Do("ZRANGEBYSCORE", key, midStr, -1)
 	if err != nil {
-		Log.Printf("redis(\"HINCRBY\", \"%s\", \"%s\", 1) failed (%s)", key, Conf.Node, err.Error())
+		delete(c.conn, conn)
+		Log.Printf("redis(\"ZRANGEBYSCORE\", \"%s\", \"%s\", 1) failed (%s)", key, midStr, err.Error())
 		return err
 	}
 
 	msgs, err := redis.Strings(reply, nil)
 	if err != nil {
+		delete(c.conn, conn)
 		Log.Printf("redis.Strings() failed (%s)", err.Error())
 		return err
 	}
@@ -121,73 +133,54 @@ func (c *RedisChannel) SendMsg(conn net.Conn, mid int64, key string) error {
 	for _, msg := range msgs {
 		m, err := NewJsonStrMessage(msg)
 		if err != nil {
-			// drop the message
+			// TODO drop the message
 			Log.Printf("device %s: can't unmarshal message %s (%s)", key, msg, err.Error())
 			continue
 		}
 
 		if m.Expired() {
-			// drop the message
+			// TODO drop the message
 			Log.Printf("device %s: message %d expired", key, m.MsgID)
-			continue
-		}
-
-		// won't happen
-		if mid >= m.MsgID {
-			Log.Printf("device %s: ignore send message : %d, the last message id : %d", key, m.MsgID, mid)
 			continue
 		}
 
 		if err := m.Write(conn, key); err != nil {
 			subscriberStats.IncrFailedMessage()
-			continue
+			delete(c.conn, conn)
+			return err
 		}
 
-		c.conn[conn] = m.MsgID
+		nmid = m.MsgID
 		subscriberStats.IncrSentMessage()
 		Log.Printf("push message \"%s\":%d to device %s", m.Msg, m.MsgID, key)
 	}
+
+	c.conn[conn] = nmid
 
 	return nil
 }
 
 // AddConn implements the Channel AddConn method.
 func (c *RedisChannel) AddConn(conn net.Conn, mid int64, key string) error {
-	c.mutex.Lock()
-	subscriberStats.IncrConn()
-	// check exceed the maxsubscribers
-	if len(c.conn)+1 > Conf.MaxSubscriberPerKey {
-		c.mutex.Unlock()
-		return MaxConnErr
-	}
-
-	Log.Printf("add conn for device %s", key)
-	// save the last push message id
-	c.conn[conn] = mid
-	c.mutex.Unlock()
-
 	// store the online state in redis hashes (HINCRBY)
 	rc := getRedisConn(key)
 	if rc == nil {
+		// TODO drop the connection from map, RemoveConn won't call if err
+		c.mutex.Lock()
+		delete(c.conn, conn)
+		c.mutex.Unlock()
 		return RedisNoConnErr
 	}
 
 	defer rc.Close()
-	reply, err := rc.Do("HINCRBY", key, Conf.Node, 1)
+	_, err := rc.Do("HINCRBY", key, Conf.Node, 1)
 	if err != nil {
+		// TODO drop the connection from map, RemoveConn won't call if err
+		c.mutex.Lock()
+		delete(c.conn, conn)
+		c.mutex.Unlock()
 		Log.Printf("redis(\"HINCRBY\", \"%s\", \"%s\", 1) failed (%s)", key, Conf.Node, err.Error())
 		return err
-	}
-
-	r, err := redis.Int(reply, nil)
-	if err != nil {
-		Log.Printf("redis.Int() failed (%s)", err.Error())
-		return err
-	}
-
-	if r < 0 {
-		Log.Printf("device %s: redis data fatal error!!!", key)
-		return RedisDataErr
 	}
 
 	return nil
@@ -208,21 +201,10 @@ func (c *RedisChannel) RemoveConn(conn net.Conn, mid int64, key string) error {
 	}
 
 	defer rc.Close()
-	reply, err := rc.Do("HINCRBY", key, Conf.Node, -1)
+	_, err := rc.Do("HINCRBY", key, Conf.Node, -1)
 	if err != nil {
 		Log.Printf("redis(\"HINCRBY\", \"%s\", \"%s\", -1) failed (%s)", key, Conf.Node, err.Error())
 		return err
-	}
-
-	r, err := redis.Int(reply, nil)
-	if err != nil {
-		Log.Printf("redis.Int() failed (%s)", err.Error())
-		return err
-	}
-
-	if r < 0 {
-		Log.Printf("device %s: redis data fatal error!!!", key)
-		return RedisDataErr
 	}
 
 	return nil

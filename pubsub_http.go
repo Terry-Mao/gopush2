@@ -249,6 +249,12 @@ func SubscribeHandle(ws *websocket.Conn) {
 		}
 	}
 
+	// send stored message, and use the last message id if sent any
+	if err = c.SendMsg(ws, mid, key); err != nil {
+		Log.Printf("device %s: send offline message failed (%s)", key, err.Error())
+		return
+	}
+
 	// add a conn to the channel
 	if err = c.AddConn(ws, mid, key); err != nil {
 		Log.Printf("device %s: add conn failed (%s)", key, err.Error())
@@ -261,12 +267,6 @@ func SubscribeHandle(ws *websocket.Conn) {
 			Log.Printf("device %s: remove conn failed (%s)", key, err.Error())
 		}
 	}()
-
-	// send stored message
-	if err = c.SendMsg(ws, mid, key); err != nil {
-		Log.Printf("device %s: send offline message failed (%s)", key, err.Error())
-		return
-	}
 
 	// blocking wait client heartbeat
 	reply := ""

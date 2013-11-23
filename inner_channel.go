@@ -38,6 +38,7 @@ func NewInnerChannel() *InnerChannel {
 
 // SendMsg implements the Channel SendMsg method.
 func (c *InnerChannel) SendMsg(conn net.Conn, mid int64, key string) error {
+	// WARN: inner store must lock
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	// find the next node
@@ -50,17 +51,17 @@ func (c *InnerChannel) SendMsg(conn net.Conn, mid int64, key string) error {
 
 		// check message expired
 		if m.Expired() {
+			// WARN:though the node deleted, can access the next node
+			c.message.Delete(n.Score)
+			subscriberStats.IncrExpiredMessage()
+			Log.Printf("delete the expired message %d for device %s", n.Score, key)
+		} else {
 			if err := m.Write(conn, key); err != nil {
 				subscriberStats.IncrFailedMessage()
 				return err
 			}
 
 			subscriberStats.IncrSentMessage()
-		} else {
-			// WARN:though the node deleted, can access the next node
-			c.message.Delete(n.Score)
-			subscriberStats.IncrExpiredMessage()
-			Log.Printf("delete the expired message %d for device %s", n.Score, key)
 		}
 	}
 
