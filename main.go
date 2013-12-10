@@ -48,6 +48,18 @@ func main() {
 	Log.Printf("gopush2 service start.")
 	// start stats
 	StartStats()
+	if Conf.Addr == Conf.AdminAddr {
+		Log.Printf("Admin addr must not same with addr for security reason")
+		os.Exit(-1)
+	}
+
+	// start admin http
+	go func() {
+		if err := StartAdminHttp(); err != nil {
+			Log.Printf("StartAdminHttp() failed (%s)", err.Error())
+			os.Exit(-1)
+		}
+	}()
 
 	if Conf.Protocol == WebsocketProtocol {
 		// Start http push service

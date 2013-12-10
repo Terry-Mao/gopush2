@@ -88,8 +88,8 @@ func handleTCPConn(conn net.Conn) {
 		return
 	}
 
-	args := make([]string, argNum)
-	for i := 0; i < argNum; i-- {
+	args := make([]string, 0, argNum)
+	for i := 0; i < argNum; i++ {
 		// get argument length
 		cmdLen, err := parseCmdSize(rd, '$')
 		if err != nil {
@@ -100,13 +100,15 @@ func handleTCPConn(conn net.Conn) {
 		// get argument data
 		d, err := parseCmdData(rd, cmdLen)
 		if err != nil {
-			Log.Printf("parse cmd data error")
+			Log.Printf("parse cmd data error (%s)", err.Error())
 			return
 		}
 
 		// append args
 		args = append(args, string(d))
 	}
+
+	// TODO send ok package
 
 	switch args[0] {
 	case "sub":
@@ -199,9 +201,13 @@ func SubscribeTCPHandle(conn net.Conn, args []string) {
 	}()
 
 	// blocking wait client heartbeat
-	reply := make([]byte, 1)
+	reply := make([]byte, 0, 1)
 	for {
-		conn.SetReadDeadline(time.Now().Add(time.Second * time.Duration(heartbeat)))
+		if err = conn.SetReadDeadline(time.Now().Add(time.Second * time.Duration(heartbeat))); err != nil {
+			Log.Printf("conn.SetReadDeadLine() failed (%s)", err.Error())
+			return
+		}
+
 		if _, err = conn.Read(reply); err != nil {
 			Log.Printf("conn.Read() failed (%s)", err.Error())
 			return
@@ -223,30 +229,30 @@ func SubscribeTCPHandle(conn net.Conn, args []string) {
 	return
 }
 
+// parseCmdSize get the sub request protocol cmd size
 func parseCmdSize(rd *bufio.Reader, prefix uint8) (int, error) {
-	cmdBuf := make([]byte, 8)
+	cmd := ""
 	for {
-		cmd, err := rd.ReadBytes('\n')
+		str, err := rd.ReadString('\n')
 		if err != nil {
-			Log.Printf("rd.ReadBytes('\n') failed (%s)", err.Error())
+			Log.Printf("rd.ReadBytes('\\n') failed (%s)", err.Error())
 			return 0, err
 		}
 
-		cmdBuf = append(cmdBuf, cmd...)
-		if len(cmd) > 0 && cmd[len(cmd)-1] == '\r' {
+		cmd += str
+		if len(cmd) > 0 && cmd[len(cmd)-2] == '\r' {
 			break
 		}
 	}
 
-	cmd := string(cmdBuf)
 	cmdLen := len(cmd)
 	if cmdLen <= 3 || cmd[0] != prefix {
-		Log.Printf("tcp protocol cmd: %s number format error", cmd)
+		Log.Printf("tcp protocol cmd: %s(%d) number format error", cmd, cmdLen)
 		return 0, CmdFmtErr
 	}
 
-	// skip the \r
-	cmdSize, err := strconv.Atoi(cmd[1 : cmdLen-1])
+	// skip the \r\n
+	cmdSize, err := strconv.Atoi(cmd[1 : cmdLen-2])
 	if err != nil {
 		Log.Printf("tcp protocol cmd: %s number parse int failed (%s)", cmd, err.Error())
 		return 0, CmdFmtErr
@@ -255,14 +261,16 @@ func parseCmdSize(rd *bufio.Reader, prefix uint8) (int, error) {
 	return cmdSize, nil
 }
 
+// parseCmdData get the sub request protocol cmd data not included \r\n
 func parseCmdData(rd *bufio.Reader, cmdLen int) ([]byte, error) {
 	rcmdLen := cmdLen + 2
 	buf := make([]byte, rcmdLen)
 	if n, err := rd.Read(buf); err != nil {
 		return nil, err
 	} else if n != rcmdLen {
+		Log.Printf("tcp protocol cmd parse error, length %d, but real length %d", n, rcmdLen)
 		return nil, CmdSizeErr
 	}
 
-	return buf, nil
+	return buf[0:cmdLen], nil
 }
