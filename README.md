@@ -26,6 +26,7 @@
  * Restrict the subscribers per key
  * Heartbeat support
  * Token authentication
+ * Two protocol support (Websocket, TCP)
  * Stats (Memory, Channel, Subscriber, Golang, Server)
 
 ## Requirements
@@ -34,7 +35,7 @@
 
 ```sh
 # websocket
-$ go get code.google.com/p/go.net/websocket 
+$ go get -u code.google.com/p/go.net/websocket 
 ```
 
 ## Installation
@@ -120,6 +121,9 @@ a simple javascript examples
       "pool": 50
     }
   },
+  "read_buf_byte": 512, # the protocol tcp read buffer bytes
+  "write_buf_byte": 512, # the protocl tcp write buffer bytes
+  "protocol": 1, # push protocol (0: websocket, 1: tcp)
   "debug": 1 # use test client, http://xx:xx/client (1: open, 0: close)
 }
 ```
@@ -151,21 +155,21 @@ a simple javascript examples
 ```python
 # Return code
 # internal failed
-# retInternalErr = 65535
+retInternalErr = 65535
 # param error
-# retParamErr = 65534
+retParamErr = 65534
 # ok
-# retOK = 0
+retOK = 0
 # create channel failed
-# retCreateChannel = 1
+retCreateChannel = 1
 # add channel failed
-# retAddChannle = 2
+retAddChannle = 2
 # get channel failed
-# retGetChannel = 3
+retGetChannel = 3
 # add token failed
-# retAddToken = 4
+retAddToken = 4
 # message push failed
-# retPushMsg = 5
+retPushMsg = 5
 
 # Subscriber received response json
 {
@@ -198,8 +202,7 @@ $ go doc github.com/Terry-Mao/gopush2
 Alternatively, you can [gopush2](http://go.pkgdoc.org/github.com/Terry-Mao/gopush2).
 
 ## TODO
-  * Use redis to store the message
-  * Add tcp support
   * Add more test
+  * Add cluster
   * Add test case and examples
 

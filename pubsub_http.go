@@ -6,28 +6,8 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	"runtime/debug"
 	"strconv"
 	"time"
-)
-
-const (
-	// internal failed
-	retInternalErr = 65535
-	// param error
-	retParamErr = 65534
-	// ok
-	retOK = 0
-	// create channel failed
-	retCreateChannel = 1
-	// add channel failed
-	retAddChannle = 2
-	// get channel failed
-	retGetChannel = 3
-	// add token failed
-	retAddToken = 4
-	// message push failed
-	retPushMsg = 5
 )
 
 func StartHttp() error {
@@ -225,7 +205,7 @@ func SubscribeHandle(ws *websocket.Conn) {
 
 	// get auth token
 	token := params.Get("token")
-	Log.Printf("client %s subscribe to key = %s, mid = %s, token = %s, heartbeat = %d", ws.Request().RemoteAddr, key, midStr, token, heartbeat)
+	Log.Printf("client %s subscribe to key = %s, mid = %d, token = %s, heartbeat = %d", ws.Request().RemoteAddr, key, mid, token, heartbeat)
 	// fetch subscriber from the channel
 	c, err := channel.Get(key)
 	if err != nil {
@@ -277,8 +257,8 @@ func SubscribeHandle(ws *websocket.Conn) {
 			return
 		}
 
-		if reply == "" {
-			if _, err = ws.Write([]byte("")); err != nil {
+		if reply == heartbeatMsg {
+			if _, err = ws.Write(heartbeatBytes); err != nil {
 				Log.Printf("device %s: write heartbeat to client failed (%s)", key, err.Error())
 				return
 			}
@@ -289,6 +269,8 @@ func SubscribeHandle(ws *websocket.Conn) {
 			return
 		}
 	}
+
+	return
 }
 
 func retWrite(w http.ResponseWriter, msg string, ret int) error {
@@ -310,10 +292,4 @@ func retWrite(w http.ResponseWriter, msg string, ret int) error {
 	}
 
 	return nil
-}
-
-func recoverFunc() {
-	if err := recover(); err != nil {
-		Log.Printf("Error : %v, Debug : \n%s", err, string(debug.Stack()))
-	}
 }

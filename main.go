@@ -48,9 +48,19 @@ func main() {
 	Log.Printf("gopush2 service start.")
 	// start stats
 	StartStats()
-	// Start http push service
-	if err = StartHttp(); err != nil {
-		Log.Printf("StartHttp failed (%s)", err.Error())
+
+	if Conf.Protocol == WebsocketProtocol {
+		// Start http push service
+		if err = StartHttp(); err != nil {
+			Log.Printf("StartHttp() failed (%s)", err.Error())
+		}
+	} else if Conf.Protocol == TCPProtocol {
+		// Start http push service
+		if err = StartTCP(); err != nil {
+			Log.Printf("StartTCP() failed (%s)", err.Error())
+		}
+	} else {
+		Log.Printf("unknown configuration protocol: %d", Conf.Protocol)
 	}
 
 	// exit
