@@ -59,6 +59,8 @@ func StartTCP() error {
 			continue
 		}
 
+		// TODO read timeout
+
 		go handleTCPConn(conn)
 	}
 
@@ -75,7 +77,7 @@ func handleTCPConn(conn net.Conn) {
 	}()
 
 	// parse protocol reference: http://redis.io/topics/protocol (use redis protocol)
-	rd := bufio.NewReader(conn)
+	rd := bufio.NewReaderSize(conn, Conf.ReadBufByte)
 	// get argument number
 	argNum, err := parseCmdSize(rd, '*')
 	if err != nil {
@@ -275,11 +277,21 @@ func parseCmdSize(rd *bufio.Reader, prefix uint8) (int, error) {
 func parseCmdData(rd *bufio.Reader, cmdLen int) ([]byte, error) {
 	rcmdLen := cmdLen + 2
 	buf := make([]byte, rcmdLen)
-	if n, err := rd.Read(buf); err != nil {
-		return nil, err
-	} else if n != rcmdLen {
-		Log.Printf("tcp protocol cmd parse error, length %d, but real length %d", n, rcmdLen)
-		return nil, CmdSizeErr
+	r := 0
+	for {
+		n, err := rd.Read(buf[r:])
+		if err != nil {
+			return nil, err
+		}
+
+		if r = r + n; r < rcmdLen {
+			continue
+		} else if r == rcmdLen {
+			break
+		} else {
+			Log.Printf("tcp protocol parse data exceed the cmd size")
+			return nil, CmdSizeErr
+		}
 	}
 
 	// check last \r\n
