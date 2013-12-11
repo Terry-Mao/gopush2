@@ -20,6 +20,7 @@ func Client(w http.ResponseWriter, r *http.Request) {
     <script type="text/javascript">
         var sock = null;
         var wsuri = "ws://%s/sub?key=Terry-Mao&mid=0&token=test";
+        var first = true;
 
         window.onload = function() {
             try
@@ -42,14 +43,17 @@ func Client(w http.ResponseWriter, r *http.Request) {
             }
 
             sock.onmessage = function(e) {
-                if(e.data != "") {
+                if(e.data != "h") {
                     alert("message received: " + e.data);
+                } else if(e.data == "h") {
+                    if(first) {
+                        setInterval("sock.send('h')", 3000);
+                        first = false;
+                    }
                 }
             }
 
         };
-
-        setInterval("sock.send('')", 3000);
 </script>
 <h1>Push Service </h1>
 `, addr)
