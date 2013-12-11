@@ -7,6 +7,7 @@
   * [Installation](#installation)
   * [Usage](#usage)
   * [Configuration](#configuration)
+  * [Examples](#examples)
   * [Protocol](#protocol)
   * [Development](#development)
   * [Documention](#documentation)
@@ -64,6 +65,7 @@ a simple javascript examples
     <script type="text/javascript">
         var sock = null;
         var wsuri = "ws://%s:%d/sub?key=Terry-Mao&mid=0&token=test";
+        var first = true;
 
         window.onload = function() {
             try
@@ -86,14 +88,17 @@ a simple javascript examples
             }
 
             sock.onmessage = function(e) {
-                if(e.data != "") {
+                if(e.data != "h") {
                     alert("message received: " + e.data);
+                } else if(e.data == "h") {
+                    if(first) {
+                        setInterval("sock.send('h')", 3000);
+                        first = false;
+                    }
                 }
             }
-
         };
 
-        setInterval("sock.send('')", 3000);
 </script>
 ```
 
@@ -128,6 +133,14 @@ a simple javascript examples
 }
 ```
 
+## Examples
+```sh
+# test tcp protocol
+$ cd test/tcp
+$ go build
+$ ./tcp
+```
+
 ## Protocol
 ```python
  # 1
@@ -149,7 +162,7 @@ a simple javascript examples
  # If any error, gopush2 close the socket, client need to retry connect
 
  # 6
- # Client send heartbeat and receive heartbeat
+ # Client send heartbeat(after first server heartbeat) and receive heartbeat
 ```
 
 ```python

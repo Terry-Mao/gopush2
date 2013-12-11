@@ -96,6 +96,12 @@ func SubscribeHandle(ws *websocket.Conn) {
 		}
 	}
 
+	// send first heartbeat to tell client service is ready for accept heartbeat
+	if _, err = ws.Write(heartbeatBytes); err != nil {
+		Log.Printf("device %s: write first heartbeat to client failed (%s)", key, err.Error())
+		return
+	}
+
 	// send stored message, and use the last message id if sent any
 	if err = c.SendMsg(ws, mid, key); err != nil {
 		Log.Printf("device %s: send offline message failed (%s)", key, err.Error())

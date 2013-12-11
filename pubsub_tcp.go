@@ -108,8 +108,6 @@ func handleTCPConn(conn net.Conn) {
 		args = append(args, string(d))
 	}
 
-	// TODO send ok package
-
 	switch args[0] {
 	case "sub":
 		SubscribeTCPHandle(conn, args[1:])
@@ -152,6 +150,12 @@ func SubscribeTCPHandle(conn net.Conn, args []string) {
 		heartbeat = i
 	}
 
+	heartbeat *= 2
+	if heartbeat <= 0 {
+		Log.Printf("heartbeat argument error, less than 0")
+		return
+	}
+
 	token := ""
 	if argLen > 3 {
 		token = args[3]
@@ -181,6 +185,12 @@ func SubscribeTCPHandle(conn net.Conn, args []string) {
 		}
 	}
 
+	// send first heartbeat to tell client service is ready for accept heartbeat
+	if _, err := conn.Write(heartbeatBytes); err != nil {
+		Log.Printf("device %s: write first heartbeat to client failed (%s)", key, err.Error())
+		return
+	}
+
 	// send stored message, and use the last message id if sent any
 	if err = c.SendMsg(conn, mid, key); err != nil {
 		Log.Printf("device %s: send offline message failed (%s)", key, err.Error())
@@ -201,7 +211,7 @@ func SubscribeTCPHandle(conn net.Conn, args []string) {
 	}()
 
 	// blocking wait client heartbeat
-	reply := make([]byte, 0, 1)
+	reply := make([]byte, heartbeatByteLen)
 	for {
 		if err = conn.SetReadDeadline(time.Now().Add(time.Second * time.Duration(heartbeat))); err != nil {
 			Log.Printf("conn.SetReadDeadLine() failed (%s)", err.Error())
@@ -240,7 +250,7 @@ func parseCmdSize(rd *bufio.Reader, prefix uint8) (int, error) {
 		}
 
 		cmd += str
-		if len(cmd) > 0 && cmd[len(cmd)-2] == '\r' {
+		if len(cmd) > 2 && cmd[len(cmd)-2] == '\r' {
 			break
 		}
 	}
@@ -272,5 +282,11 @@ func parseCmdData(rd *bufio.Reader, cmdLen int) ([]byte, error) {
 		return nil, CmdSizeErr
 	}
 
+	// check last \r\n
+	if buf[cmdLen] != '\r' || buf[cmdLen+1] != '\n' {
+		return nil, CmdFmtErr
+	}
+
+	// skip last \r\n
 	return buf[0:cmdLen], nil
 }

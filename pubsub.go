@@ -45,8 +45,9 @@ var (
 )
 
 var (
-	heartbeatMsg   = ""
-	heartbeatBytes = []byte(heartbeatMsg)
+	heartbeatMsg     = "h"
+	heartbeatBytes   = []byte(heartbeatMsg)
+	heartbeatByteLen = len(heartbeatMsg)
 )
 
 func StartAdminHttp() error {
