@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"net/http"
@@ -181,4 +182,25 @@ func recoverFunc() {
 	if err := recover(); err != nil {
 		Log.Printf("Error : %v, Debug : \n%s", err, string(debug.Stack()))
 	}
+}
+
+func retWrite(w http.ResponseWriter, msg string, ret int) error {
+	res := map[string]interface{}{}
+	res["msg"] = msg
+	res["ret"] = ret
+
+	strJson, err := json.Marshal(res)
+	if err != nil {
+		Log.Printf("json.Marshal(\"%v\") failed", res)
+		return err
+	}
+
+	respJson := string(strJson)
+	Log.Printf("pub send to client: %s", respJson)
+	if _, err := w.Write(strJson); err != nil {
+		Log.Printf("w.Write(\"%s\") failed (%s)", respJson, err.Error())
+		return err
+	}
+
+	return nil
 }
