@@ -92,20 +92,14 @@ func (l *ChannelList) bucket(key string) *channelBucket {
 }
 
 func (l *ChannelList) New(key string) (Channel, error) {
-	var (
-		c   Channel
-		ok  bool
-		now = time.Now().UnixNano()
-	)
-
 	// get a channel bucket
 	b := l.bucket(key)
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 
-	if c, ok = b.data[key]; ok {
+	if c, ok := b.data[key]; ok {
 		// refresh the expire time
-		c.SetDeadline(now + Conf.ChannelExpireSec*Second)
+		c.SetDeadline(time.Now().UnixNano() + Conf.ChannelExpireSec*Second)
 		return c, nil
 	} else {
 		if Conf.ChannelType == InnerChannelType {
@@ -118,24 +112,18 @@ func (l *ChannelList) New(key string) (Channel, error) {
 		}
 
 		b.data[key] = c
+		return c, nil
 	}
-
-	return c, nil
 }
 
 // get a subscriber from channel in pub/sub action
 func (l *ChannelList) Get(key string) (Channel, error) {
-	var (
-		c  Channel
-		ok bool
-	)
-
 	// get a channel bucket
 	b := l.bucket(key)
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 
-	if c, ok = b.data[key]; !ok {
+	if c, ok := b.data[key]; !ok {
 		return nil, ChannelNotExistErr
 	} else {
 		// check expired
@@ -148,7 +136,7 @@ func (l *ChannelList) Get(key string) (Channel, error) {
 
 			return nil, ChannelExpiredErr
 		}
-	}
 
-	return c, nil
+		return c, nil
+	}
 }

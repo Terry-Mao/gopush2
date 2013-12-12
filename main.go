@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"runtime/debug"
 )
 
 var (
@@ -18,8 +19,9 @@ func init() {
 }
 
 func main() {
-	var err error
+	defer recoverFunc()
 
+	var err error
 	// parse cmd-line arguments
 	flag.Parse()
 	// init config
@@ -77,4 +79,10 @@ func main() {
 
 	// exit
 	Log.Printf("gopush2 service stop.")
+}
+
+func recoverFunc() {
+	if err := recover(); err != nil {
+		Log.Printf("Error : %v, Debug : \n%s", err, string(debug.Stack()))
+	}
 }

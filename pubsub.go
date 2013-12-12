@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/pprof"
-	"runtime/debug"
 	"strconv"
 	"time"
 )
@@ -180,12 +179,6 @@ func PublishHandle(w http.ResponseWriter, r *http.Request) {
 	if err = retWrite(w, "ok", retOK); err != nil {
 		Log.Printf("pubRetWrite() failed (%s)", err.Error())
 		return
-	}
-}
-
-func recoverFunc() {
-	if err := recover(); err != nil {
-		Log.Printf("Error : %v, Debug : \n%s", err, string(debug.Stack()))
 	}
 }
 

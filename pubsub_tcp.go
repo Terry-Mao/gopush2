@@ -68,8 +68,6 @@ func StartTCP() error {
 }
 
 func handleTCPConn(conn net.Conn) {
-	defer recoverFunc()
-
 	// parse protocol reference: http://redis.io/topics/protocol (use redis protocol)
 	rd := bufio.NewReaderSize(conn, Conf.ReadBufByte)
 	if args, err := parseCmd(rd); err == nil {
@@ -132,7 +130,7 @@ func SubscribeTCPHandle(conn net.Conn, args []string) {
 		token = args[3]
 	}
 
-	Log.Printf("client %s subscribe to key = %s, mid = %d, token = %s, heartbeat = %d", conn.RemoteAddr().String(), key, mid, token, heartbeat)
+	// Log.Printf("client %s subscribe to key = %s, mid = %d, token = %s, heartbeat = %d", conn.RemoteAddr().String(), key, mid, token, heartbeat)
 	// fetch subscriber from the channel
 	c, err := channel.Get(key)
 	if err != nil {

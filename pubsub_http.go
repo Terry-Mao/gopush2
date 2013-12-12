@@ -62,8 +62,6 @@ func StartHttp() error {
 
 // Subscriber Handle is the websocket handle for sub request
 func SubscribeHandle(ws *websocket.Conn) {
-	defer recoverFunc()
-
 	params := ws.Request().URL.Query()
 	// get subscriber key
 	key := params.Get("key")

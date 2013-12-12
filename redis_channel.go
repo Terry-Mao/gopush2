@@ -20,6 +20,8 @@ var (
 	msgRedisPre    = "m_"
 	onlineRedisPre = "o_"
 	tokenRedisPre  = "t_"
+
+	defaultRedisNode = "node1"
 )
 
 type RedisChannel struct {
@@ -295,7 +297,7 @@ func (c *RedisChannel) Close() error {
 }
 
 func getRedisConn(key string) redis.Conn {
-	node := "node1"
+	node := defaultRedisNode
 	// if multiple redispool use ketama
 	if len(redisPool) != 1 {
 		node = redisHash.Node(key)
