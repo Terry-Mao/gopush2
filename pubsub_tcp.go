@@ -276,7 +276,7 @@ func parseCmdData(rd *bufio.Reader, cmdLen int) ([]byte, error) {
 
 	dl := len(d)
 	// check last \r\n
-	if dl < 2 || d[dl-2] != '\r' {
+	if dl != cmdLen+2 || d[dl-2] != '\r' {
 		Log.Printf("tcp protocol cmd: %v(%d) number format error", d, dl)
 		return nil, CmdFmtErr
 	}
