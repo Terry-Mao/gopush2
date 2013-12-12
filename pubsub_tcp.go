@@ -9,8 +9,7 @@ import (
 )
 
 var (
-	CmdFmtErr  = errors.New("cmd format error")
-	CmdSizeErr = errors.New("cmd data size error")
+	CmdFmtErr = errors.New("cmd format error")
 )
 
 func StartTCP() error {
@@ -70,53 +69,23 @@ func StartTCP() error {
 
 func handleTCPConn(conn net.Conn) {
 	defer recoverFunc()
-	defer func() {
-		if err := conn.Close(); err != nil {
-			Log.Printf("conn.Close() failed (%s)", err.Error())
-		}
-	}()
 
 	// parse protocol reference: http://redis.io/topics/protocol (use redis protocol)
 	rd := bufio.NewReaderSize(conn, Conf.ReadBufByte)
-	// get argument number
-	argNum, err := parseCmdSize(rd, '*')
-	if err != nil {
-		Log.Printf("parse cmd argument number error")
-		return
-	}
-
-	if argNum < 1 {
-		Log.Printf("parse cmd argument number length error")
-		return
-	}
-
-	args := make([]string, 0, argNum)
-	for i := 0; i < argNum; i++ {
-		// get argument length
-		cmdLen, err := parseCmdSize(rd, '$')
-		if err != nil {
-			Log.Printf("parse cmd first argument size error")
-			return
+	if args, err := parseCmd(rd); err == nil {
+		switch args[0] {
+		case "sub":
+			SubscribeTCPHandle(conn, args[1:])
+			break
+		default:
+			Log.Printf("tcp protocol unknown cmd: %s", args[0])
+			break
 		}
-
-		// get argument data
-		d, err := parseCmdData(rd, cmdLen)
-		if err != nil {
-			Log.Printf("parse cmd data error (%s)", err.Error())
-			return
-		}
-
-		// append args
-		args = append(args, string(d))
 	}
 
-	switch args[0] {
-	case "sub":
-		SubscribeTCPHandle(conn, args[1:])
-		break
-	default:
-		Log.Printf("tcp protocol unknown cmd: %s", args[0])
-		return
+	// close the connection
+	if err := conn.Close(); err != nil {
+		Log.Printf("conn.Close() failed (%s)", err.Error())
 	}
 
 	return
@@ -205,40 +174,74 @@ func SubscribeTCPHandle(conn net.Conn, args []string) {
 		return
 	}
 
-	// remove exists conn
-	defer func() {
-		if err := c.RemoveConn(conn, mid, key); err != nil {
-			Log.Printf("device %s: remove conn failed (%s)", key, err.Error())
-		}
-	}()
-
 	// blocking wait client heartbeat
 	reply := make([]byte, heartbeatByteLen)
 	for {
 		if err = conn.SetReadDeadline(time.Now().Add(time.Second * time.Duration(heartbeat))); err != nil {
 			Log.Printf("conn.SetReadDeadLine() failed (%s)", err.Error())
-			return
+			break
 		}
 
 		if _, err = conn.Read(reply); err != nil {
 			Log.Printf("conn.Read() failed (%s)", err.Error())
-			return
+			break
 		}
 
 		if string(reply) == heartbeatMsg {
 			if _, err = conn.Write(heartbeatBytes); err != nil {
 				Log.Printf("device %s: write heartbeat to client failed (%s)", key, err.Error())
-				return
+				break
 			}
 
 			Log.Printf("device %s: receive heartbeat", key)
 		} else {
 			Log.Printf("device %s: unknown heartbeat protocol", key)
-			return
+			break
 		}
 	}
 
+	// remove exists conn
+	if err := c.RemoveConn(conn, mid, key); err != nil {
+		Log.Printf("device %s: remove conn failed (%s)", key, err.Error())
+	}
+
 	return
+}
+
+func parseCmd(rd *bufio.Reader) ([]string, error) {
+	// get argument number
+	argNum, err := parseCmdSize(rd, '*')
+	if err != nil {
+		Log.Printf("parse cmd argument number error")
+		return nil, err
+	}
+
+	if argNum < 1 {
+		Log.Printf("parse cmd argument number length error")
+		return nil, CmdFmtErr
+	}
+
+	args := make([]string, 0, argNum)
+	for i := 0; i < argNum; i++ {
+		// get argument length
+		cmdLen, err := parseCmdSize(rd, '$')
+		if err != nil {
+			Log.Printf("parse cmd first argument size error")
+			return nil, err
+		}
+
+		// get argument data
+		d, err := parseCmdData(rd, cmdLen)
+		if err != nil {
+			Log.Printf("parse cmd data error (%s)", err.Error())
+			return nil, err
+		}
+
+		// append args
+		args = append(args, string(d))
+	}
+
+	return args, nil
 }
 
 // parseCmdSize get the sub request protocol cmd size

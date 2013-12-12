@@ -138,33 +138,31 @@ func SubscribeHandle(ws *websocket.Conn) {
 		return
 	}
 
-	// remove exists conn
-	defer func() {
-		if err := c.RemoveConn(ws, mid, key); err != nil {
-			Log.Printf("device %s: remove conn failed (%s)", key, err.Error())
-		}
-	}()
-
 	// blocking wait client heartbeat
 	reply := ""
 	for {
 		ws.SetReadDeadline(time.Now().Add(time.Second * time.Duration(heartbeat)))
 		if err = websocket.Message.Receive(ws, &reply); err != nil {
 			Log.Printf("websocket.Message.Receive() failed (%s)", err.Error())
-			return
+			break
 		}
 
 		if reply == heartbeatMsg {
 			if _, err = ws.Write(heartbeatBytes); err != nil {
 				Log.Printf("device %s: write heartbeat to client failed (%s)", key, err.Error())
-				return
+				break
 			}
 
 			Log.Printf("device %s: receive heartbeat", key)
 		} else {
 			Log.Printf("device %s: unknown heartbeat protocol", key)
-			return
+			break
 		}
+	}
+
+	// remove exists conn
+	if err := c.RemoveConn(ws, mid, key); err != nil {
+		Log.Printf("device %s: remove conn failed (%s)", key, err.Error())
 	}
 
 	return
