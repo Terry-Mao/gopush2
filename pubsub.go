@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"net/http"
+	"net/http/pprof"
 	"runtime/debug"
 	"strconv"
 	"time"
@@ -62,6 +63,10 @@ func StartAdminHttp() error {
 		adminServeMux.HandleFunc("/ch", ChannelHandle)
 	}
 
+	adminServeMux.HandleFunc("/debug/pprof/", pprof.Index)
+	adminServeMux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	adminServeMux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	adminServeMux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	err := http.ListenAndServe(Conf.AdminAddr, adminServeMux)
 	if err != nil {
 		Log.Printf("http.ListenAdServe(\"%s\") failed (%s)", Conf.AdminAddr, err.Error())

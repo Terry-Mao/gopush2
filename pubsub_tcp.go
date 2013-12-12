@@ -243,30 +243,23 @@ func SubscribeTCPHandle(conn net.Conn, args []string) {
 
 // parseCmdSize get the sub request protocol cmd size
 func parseCmdSize(rd *bufio.Reader, prefix uint8) (int, error) {
-	cmd := ""
-	for {
-		str, err := rd.ReadString('\n')
-		if err != nil {
-			Log.Printf("rd.ReadBytes('\\n') failed (%s)", err.Error())
-			return 0, err
-		}
-
-		cmd += str
-		if len(cmd) > 2 && cmd[len(cmd)-2] == '\r' {
-			break
-		}
+	// get command size
+	cs, err := rd.ReadBytes('\n')
+	if err != nil {
+		Log.Printf("rd.ReadBytes('\\n') failed (%s)", err.Error())
+		return 0, err
 	}
 
-	cmdLen := len(cmd)
-	if cmdLen <= 3 || cmd[0] != prefix {
-		Log.Printf("tcp protocol cmd: %s(%d) number format error", cmd, cmdLen)
+	csl := len(cs)
+	if csl <= 3 || cs[0] != prefix || cs[csl-2] != '\r' {
+		Log.Printf("tcp protocol cmd: %v(%d) number format error", cs, csl)
 		return 0, CmdFmtErr
 	}
 
 	// skip the \r\n
-	cmdSize, err := strconv.Atoi(cmd[1 : cmdLen-2])
+	cmdSize, err := strconv.Atoi(string(cs[1 : csl-2]))
 	if err != nil {
-		Log.Printf("tcp protocol cmd: %s number parse int failed (%s)", cmd, err.Error())
+		Log.Printf("tcp protocol cmd: %v number parse int failed (%s)", cs, err.Error())
 		return 0, CmdFmtErr
 	}
 
@@ -275,30 +268,19 @@ func parseCmdSize(rd *bufio.Reader, prefix uint8) (int, error) {
 
 // parseCmdData get the sub request protocol cmd data not included \r\n
 func parseCmdData(rd *bufio.Reader, cmdLen int) ([]byte, error) {
-	rcmdLen := cmdLen + 2
-	buf := make([]byte, rcmdLen)
-	r := 0
-	for {
-		n, err := rd.Read(buf[r:])
-		if err != nil {
-			return nil, err
-		}
-
-		if r = r + n; r < rcmdLen {
-			continue
-		} else if r == rcmdLen {
-			break
-		} else {
-			Log.Printf("tcp protocol parse data exceed the cmd size")
-			return nil, CmdSizeErr
-		}
+	d, err := rd.ReadBytes('\n')
+	if err != nil {
+		Log.Printf("rd.ReadBytes('\\n') failed (%s)", err.Error())
+		return nil, err
 	}
 
+	dl := len(d)
 	// check last \r\n
-	if buf[cmdLen] != '\r' || buf[cmdLen+1] != '\n' {
+	if dl < 2 || d[dl-2] != '\r' || d[dl-1] != '\n' {
+		Log.Printf("tcp protocol cmd: %v(%d) number format error", d, dl)
 		return nil, CmdFmtErr
 	}
 
 	// skip last \r\n
-	return buf[0:cmdLen], nil
+	return d[0 : dl-2], nil
 }

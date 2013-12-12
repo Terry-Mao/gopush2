@@ -29,8 +29,6 @@ type RedisChannel struct {
 	conn map[net.Conn]int64
 	// Channel expired unixnano
 	expire int64
-	// Max message stored number
-	MaxMessage int
 }
 
 // Init redis channel, such as init redis pool, init consistent hash ring
@@ -66,7 +64,6 @@ func NewRedisChannel() *RedisChannel {
 	c.mutex = &sync.Mutex{}
 	c.conn = map[net.Conn]int64{}
 	c.expire = time.Now().UnixNano() + Conf.ChannelExpireSec*Second
-	c.MaxMessage = Conf.MaxStoredMessage
 
 	return c
 }
