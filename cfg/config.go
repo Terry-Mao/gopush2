@@ -20,7 +20,8 @@ type RedisConfig struct {
 	Network string `json:"network"`
 	Addr    string `json:"addr"`
 	Timeout int    `json:"timeout"`
-	Pool    int    `json:"pool"`
+	Active  int    `json:"active"`
+	Idle    int    `json:"idle"`
 }
 
 type Config struct {

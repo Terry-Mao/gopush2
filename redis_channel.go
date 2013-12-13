@@ -42,7 +42,8 @@ func InitRedisChannel() error {
 	// redis pool
 	for n, c := range Conf.Redis {
 		redisPool[n] = &redis.Pool{
-			MaxIdle:     c.Pool,
+			MaxIdle:     c.Idle,
+			MaxActive:   c.Active,
 			IdleTimeout: time.Duration(c.Timeout) * time.Second,
 			Dial: func() (redis.Conn, error) {
 				conn, err := redis.Dial(c.Network, c.Addr)
