@@ -86,7 +86,7 @@ func ServerStats() []byte {
 	res["pid"] = os.Getpid()
 	res["pagesize"] = os.Getpagesize()
 	if usr, err := user.Current(); err != nil {
-		Log.Printf("user.Current() failed (%s)", err.Error())
+		LogError(LogLevelErr, "user.Current() failed (%s)", err.Error())
 		res["group"] = ""
 		res["user"] = ""
 	} else {
@@ -101,7 +101,7 @@ func ServerStats() []byte {
 func ConfigInfo() []byte {
 	strJson, err := json.Marshal(Conf)
 	if err != nil {
-		Log.Printf("json.Marshal(\"%v\") failed", Conf)
+		LogError(LogLevelErr, "json.Marshal(\"%v\") failed", Conf)
 		return []byte{}
 	}
 
@@ -111,7 +111,7 @@ func ConfigInfo() []byte {
 func jsonRes(res map[string]interface{}) []byte {
 	strJson, err := json.Marshal(res)
 	if err != nil {
-		Log.Printf("json.Marshal(\"%v\") failed", res)
+		LogError(LogLevelErr, "json.Marshal(\"%v\") failed", res)
 		return []byte{}
 	}
 
@@ -140,7 +140,7 @@ func StatHandle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := w.Write(res); err != nil {
-		Log.Printf("w.Write(\"%s\") failed (%s)", string(res), err.Error())
+		LogError(LogLevelErr, "w.Write(\"%s\") failed (%s)", string(res), err.Error())
 	}
 
 	return

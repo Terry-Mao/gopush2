@@ -68,7 +68,7 @@ func StartAdminHttp() error {
 	adminServeMux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	err := http.ListenAndServe(Conf.AdminAddr, adminServeMux)
 	if err != nil {
-		Log.Printf("http.ListenAdServe(\"%s\") failed (%s)", Conf.AdminAddr, err.Error())
+		LogError(LogLevelErr, "http.ListenAdServe(\"%s\") failed (%s)", Conf.AdminAddr, err.Error())
 		return err
 	}
 
@@ -87,33 +87,33 @@ func ChannelHandle(w http.ResponseWriter, r *http.Request) {
 	token := params.Get("token")
 	if key == "" || token == "" {
 		if err := retWrite(w, "param error", retParamErr); err != nil {
-			Log.Printf("retWrite failed (%s)", err.Error())
+			LogError(LogLevelErr, "retWrite failed (%s)", err.Error())
 		}
 
 		return
 	}
 
-	Log.Printf("device %s: add channel, token = %s", key, token)
+	LogError(LogLevelInfo, "device:%s add channel token = %s", key, token)
 	c, err := channel.New(key)
 	if err != nil {
-		Log.Printf("device %s: can't create channle", key)
+		LogError(LogLevelWarn, "device:%s can't create channle", key)
 		if err = retWrite(w, "create channel failed", retCreateChannel); err != nil {
-			Log.Printf("retWrite failed (%s)", err.Error())
+			LogError(LogLevelErr, "retWrite failed (%s)", err.Error())
 		}
 
 		return
 	}
 
 	if err = c.AddToken(token, key); err != nil {
-		Log.Printf("device %s: can't add token %s", key, token)
+		LogError(LogLevelWarn, "device:%s can't add token %s", key, token)
 		if err = retWrite(w, "add token failed", retAddToken); err != nil {
-			Log.Printf("retWrite failed (%s)", err.Error())
+			LogError(LogLevelErr, "retWrite failed (%s)", err.Error())
 			return
 		}
 	}
 
 	if err = retWrite(w, "ok", retOK); err != nil {
-		Log.Printf("retWrite() failed (%s)", err.Error())
+		LogError(LogLevelErr, "retWrite() failed (%s)", err.Error())
 	}
 
 	return
@@ -143,7 +143,7 @@ func PublishHandle(w http.ResponseWriter, r *http.Request) {
 	mid, err := strconv.ParseInt(midStr, 10, 64)
 	if err != nil {
 		if err = retWrite(w, "param error", retParamErr); err != nil {
-			Log.Printf("retWrite failed (%s)", err.Error())
+			LogError(LogLevelErr, "retWrite failed (%s)", err.Error())
 		}
 
 		return
@@ -152,7 +152,7 @@ func PublishHandle(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		if err = retWrite(w, "read http body error", retInternalErr); err != nil {
-			Log.Printf("pubRetWrite() failed (%s)", err.Error())
+			LogError(LogLevelErr, "pubRetWrite() failed (%s)", err.Error())
 		}
 
 		return
@@ -162,22 +162,22 @@ func PublishHandle(w http.ResponseWriter, r *http.Request) {
 	c, err := channel.Get(key)
 	if err != nil {
 		if err = retWrite(w, "can't get a subscriber", retGetChannel); err != nil {
-			Log.Printf("pubRetWrite() failed (%s)", err.Error())
+			LogError(LogLevelErr, "pubRetWrite() failed (%s)", err.Error())
 		}
 
 		return
 	}
 
 	if err = c.PushMsg(&Message{Msg: string(body), Expire: expire, MsgID: mid}, key); err != nil {
-		Log.Printf("device %s: push message failed (%s)", key, err.Error())
+		LogError(LogLevelWarn, "device:%s push message failed (%s)", key, err.Error())
 		if err = retWrite(w, "push msg failed", retPushMsg); err != nil {
-			Log.Printf("pubRetWrite() failed (%s)", err.Error())
+			LogError(LogLevelErr, "pubRetWrite() failed (%s)", err.Error())
 		}
 		return
 	}
 
 	if err = retWrite(w, "ok", retOK); err != nil {
-		Log.Printf("pubRetWrite() failed (%s)", err.Error())
+		LogError(LogLevelErr, "pubRetWrite() failed (%s)", err.Error())
 		return
 	}
 }
@@ -189,14 +189,14 @@ func retWrite(w http.ResponseWriter, msg string, ret int) error {
 
 	strJson, err := json.Marshal(res)
 	if err != nil {
-		Log.Printf("json.Marshal(\"%v\") failed", res)
+		LogError(LogLevelErr, "json.Marshal(\"%v\") failed", res)
 		return err
 	}
 
 	respJson := string(strJson)
-	Log.Printf("pub send to client: %s", respJson)
+	LogError(LogLevelInfo, "publish message:\"%s\" to client", respJson)
 	if _, err := w.Write(strJson); err != nil {
-		Log.Printf("w.Write(\"%s\") failed (%s)", respJson, err.Error())
+		LogError(LogLevelErr, "w.Write(\"%s\") failed (%s)", respJson, err.Error())
 		return err
 	}
 

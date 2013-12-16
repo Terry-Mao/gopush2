@@ -15,20 +15,20 @@ var (
 func StartTCP() error {
 	addr, err := net.ResolveTCPAddr("tcp", Conf.Addr)
 	if err != nil {
-		Log.Printf("net.ResolveTCPAddr(\"tcp\"), %s) failed (%s)", Conf.Addr, err.Error())
+		LogError(LogLevelErr, "net.ResolveTCPAddr(\"tcp\"), %s) failed (%s)", Conf.Addr, err.Error())
 		return err
 	}
 
 	l, err := net.ListenTCP("tcp", addr)
 	if err != nil {
-		Log.Printf("net.ListenTCP(\"tcp4\", \"%s\") failed (%s)", Conf.Addr, err.Error())
+		LogError(LogLevelErr, "net.ListenTCP(\"tcp4\", \"%s\") failed (%s)", Conf.Addr, err.Error())
 		return err
 	}
 
 	// free the listener resource
 	defer func() {
 		if err := l.Close(); err != nil {
-			Log.Printf("l.Close() failed (%s)", err.Error())
+			LogError(LogLevelErr, "l.Close() failed (%s)", err.Error())
 		}
 	}()
 
@@ -36,24 +36,24 @@ func StartTCP() error {
 	for {
 		conn, err := l.AcceptTCP()
 		if err != nil {
-			Log.Printf("l.AcceptTCP() failed (%s)", err.Error())
+			LogError(LogLevelErr, "l.AcceptTCP() failed (%s)", err.Error())
 			continue
 		}
 
 		if err = conn.SetKeepAlive(Conf.TCPKeepAlive == 1); err != nil {
-			Log.Printf("conn.SetKeepAlive() failed (%s)", err.Error())
+			LogError(LogLevelErr, "conn.SetKeepAlive() failed (%s)", err.Error())
 			conn.Close()
 			continue
 		}
 
 		if err = conn.SetReadBuffer(Conf.ReadBufByte); err != nil {
-			Log.Printf("conn.SetReadBuffer(%d) failed (%s)", Conf.ReadBufByte, err.Error())
+			LogError(LogLevelErr, "conn.SetReadBuffer(%d) failed (%s)", Conf.ReadBufByte, err.Error())
 			conn.Close()
 			continue
 		}
 
 		if err = conn.SetWriteBuffer(Conf.WriteBufByte); err != nil {
-			Log.Printf("conn.SetWriteBuffer(%d) failed (%s)", Conf.WriteBufByte, err.Error())
+			LogError(LogLevelErr, "conn.SetWriteBuffer(%d) failed (%s)", Conf.WriteBufByte, err.Error())
 			conn.Close()
 			continue
 		}
@@ -76,14 +76,14 @@ func handleTCPConn(conn net.Conn) {
 			SubscribeTCPHandle(conn, args[1:])
 			break
 		default:
-			Log.Printf("tcp protocol unknown cmd: %s", args[0])
+			LogError(LogLevelWarn, "tcp proto:unknown cmd \"%s\"", args[0])
 			break
 		}
 	}
 
 	// close the connection
 	if err := conn.Close(); err != nil {
-		Log.Printf("conn.Close() failed (%s)", err.Error())
+		LogError(LogLevelErr, "conn.Close() failed (%s)", err.Error())
 	}
 
 	return
@@ -93,7 +93,7 @@ func handleTCPConn(conn net.Conn) {
 func SubscribeTCPHandle(conn net.Conn, args []string) {
 	argLen := len(args)
 	if argLen < 2 {
-		Log.Printf("subscriber missing argument")
+		LogError(LogLevelWarn, "subscriber missing argument")
 		return
 	}
 
@@ -102,7 +102,7 @@ func SubscribeTCPHandle(conn net.Conn, args []string) {
 	midStr := args[1]
 	mid, err := strconv.ParseInt(midStr, 10, 64)
 	if err != nil {
-		Log.Printf("mid argument error (%s)", err.Error())
+		LogError(LogLevelErr, "mid argument error (%s)", err.Error())
 		return
 	}
 
@@ -112,7 +112,7 @@ func SubscribeTCPHandle(conn net.Conn, args []string) {
 		heartbeatStr = args[2]
 		i, err := strconv.Atoi(heartbeatStr)
 		if err != nil {
-			Log.Printf("heartbeat argument error (%s)", err.Error())
+			LogError(LogLevelErr, "heartbeat argument error (%s)", err.Error())
 			return
 		}
 
@@ -121,7 +121,7 @@ func SubscribeTCPHandle(conn net.Conn, args []string) {
 
 	heartbeat *= 2
 	if heartbeat <= 0 {
-		Log.Printf("heartbeat argument error, less than 0")
+		LogError(LogLevelWarn, "device:%s heartbeat argument error, less than 0", key)
 		return
 	}
 
@@ -137,11 +137,11 @@ func SubscribeTCPHandle(conn net.Conn, args []string) {
 		if Conf.Auth == 0 {
 			c, err = channel.New(key)
 			if err != nil {
-				Log.Printf("device %s: can't create channle", key)
+				LogError(LogLevelErr, "device:%s can't create channle", key, err.Error())
 				return
 			}
 		} else {
-			Log.Printf("device %s: can't get a channel (%s)", key, err.Error())
+			LogError(LogLevelWarn, "device:%s can't get a channel (%s)", key, err.Error())
 			return
 		}
 	}
@@ -149,26 +149,26 @@ func SubscribeTCPHandle(conn net.Conn, args []string) {
 	// auth
 	if Conf.Auth == 1 {
 		if err = c.AuthToken(token, key); err != nil {
-			Log.Printf("device %s: auth token failed \"%s\" (%s)", key, token, err.Error())
+			LogError(LogLevelErr, "device:%s auth token failed \"%s\" (%s)", key, token, err.Error())
 			return
 		}
 	}
 
 	// send first heartbeat to tell client service is ready for accept heartbeat
 	if _, err := conn.Write(heartbeatBytes); err != nil {
-		Log.Printf("device %s: write first heartbeat to client failed (%s)", key, err.Error())
+		LogError(LogLevelErr, "device:%s write first heartbeat to client failed (%s)", key, err.Error())
 		return
 	}
 
 	// send stored message, and use the last message id if sent any
 	if err = c.SendMsg(conn, mid, key); err != nil {
-		Log.Printf("device %s: send offline message failed (%s)", key, err.Error())
+		LogError(LogLevelErr, "device:%s send offline message failed (%s)", key, err.Error())
 		return
 	}
 
 	// add a conn to the channel
 	if err = c.AddConn(conn, mid, key); err != nil {
-		Log.Printf("device %s: add conn failed (%s)", key, err.Error())
+		LogError(LogLevelErr, "device:%s add conn failed (%s)", key, err.Error())
 		return
 	}
 
@@ -176,31 +176,31 @@ func SubscribeTCPHandle(conn net.Conn, args []string) {
 	reply := make([]byte, heartbeatByteLen)
 	for {
 		if err = conn.SetReadDeadline(time.Now().Add(time.Second * time.Duration(heartbeat))); err != nil {
-			Log.Printf("conn.SetReadDeadLine() failed (%s)", err.Error())
+			LogError(LogLevelErr, "conn.SetReadDeadLine() failed (%s)", err.Error())
 			break
 		}
 
 		if _, err = conn.Read(reply); err != nil {
-			Log.Printf("conn.Read() failed (%s)", err.Error())
+			LogError(LogLevelErr, "conn.Read() failed (%s)", err.Error())
 			break
 		}
 
 		if string(reply) == heartbeatMsg {
 			if _, err = conn.Write(heartbeatBytes); err != nil {
-				Log.Printf("device %s: write heartbeat to client failed (%s)", key, err.Error())
+				LogError(LogLevelErr, "device:%s write heartbeat to client failed (%s)", key, err.Error())
 				break
 			}
 
-			Log.Printf("device %s: receive heartbeat", key)
+			LogError(LogLevelInfo, "device:%s receive heartbeat", key)
 		} else {
-			Log.Printf("device %s: unknown heartbeat protocol", key)
+			LogError(LogLevelWarn, "device:%s unknown heartbeat protocol", key)
 			break
 		}
 	}
 
 	// remove exists conn
 	if err := c.RemoveConn(conn, mid, key); err != nil {
-		Log.Printf("device %s: remove conn failed (%s)", key, err.Error())
+		LogError(LogLevelErr, "device:%s remove conn failed (%s)", key, err.Error())
 	}
 
 	return
@@ -210,12 +210,12 @@ func parseCmd(rd *bufio.Reader) ([]string, error) {
 	// get argument number
 	argNum, err := parseCmdSize(rd, '*')
 	if err != nil {
-		Log.Printf("parse cmd argument number error")
+		LogError(LogLevelErr, "tcp proto cmd:argument number error (%s)", err.Error())
 		return nil, err
 	}
 
 	if argNum < 1 {
-		Log.Printf("parse cmd argument number length error")
+		LogError(LogLevelWarn, "tcp proto cmd:cmd argument number length error")
 		return nil, CmdFmtErr
 	}
 
@@ -224,14 +224,14 @@ func parseCmd(rd *bufio.Reader) ([]string, error) {
 		// get argument length
 		cmdLen, err := parseCmdSize(rd, '$')
 		if err != nil {
-			Log.Printf("parse cmd first argument size error")
+			LogError(LogLevelErr, "parseCmdSize(rd, '$') failed (%s)", err.Error())
 			return nil, err
 		}
 
 		// get argument data
 		d, err := parseCmdData(rd, cmdLen)
 		if err != nil {
-			Log.Printf("parse cmd data error (%s)", err.Error())
+			LogError(LogLevelErr, "parseCmdData failed() (%s)", err.Error())
 			return nil, err
 		}
 
@@ -247,20 +247,20 @@ func parseCmdSize(rd *bufio.Reader, prefix uint8) (int, error) {
 	// get command size
 	cs, err := rd.ReadBytes('\n')
 	if err != nil {
-		Log.Printf("rd.ReadBytes('\\n') failed (%s)", err.Error())
+		LogError(LogLevelErr, "tcp proto cmd:rd.ReadBytes('\\n') failed (%s)", err.Error())
 		return 0, err
 	}
 
 	csl := len(cs)
 	if csl <= 3 || cs[0] != prefix || cs[csl-2] != '\r' {
-		Log.Printf("tcp protocol cmd: %v(%d) number format error", cs, csl)
+		LogError(LogLevelWarn, "tcp proto cmd:\"%v\"(%d) number format error", cs, csl)
 		return 0, CmdFmtErr
 	}
 
 	// skip the \r\n
 	cmdSize, err := strconv.Atoi(string(cs[1 : csl-2]))
 	if err != nil {
-		Log.Printf("tcp protocol cmd: %v number parse int failed (%s)", cs, err.Error())
+		LogError(LogLevelErr, "tcp proto cmd:%v number parse int failed (%s)", cs, err.Error())
 		return 0, CmdFmtErr
 	}
 
@@ -271,14 +271,14 @@ func parseCmdSize(rd *bufio.Reader, prefix uint8) (int, error) {
 func parseCmdData(rd *bufio.Reader, cmdLen int) ([]byte, error) {
 	d, err := rd.ReadBytes('\n')
 	if err != nil {
-		Log.Printf("rd.ReadBytes('\\n') failed (%s)", err.Error())
+		LogError(LogLevelErr, "tcp proto cmd:rd.ReadBytes('\\n') failed (%s)", err.Error())
 		return nil, err
 	}
 
 	dl := len(d)
 	// check last \r\n
 	if dl != cmdLen+2 || d[dl-2] != '\r' {
-		Log.Printf("tcp protocol cmd: %v(%d) number format error", d, dl)
+		LogError(LogLevelWarn, "tcp proto cmd:\"%v\"(%d) number format error", d, dl)
 		return nil, CmdFmtErr
 	}
 

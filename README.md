@@ -123,7 +123,8 @@ a simple javascript examples
       "network": "tcp",
       "addr": "10.20.216.122:6379",
       "timeout": 28800,
-      "pool": 50
+      "active": 100,
+      "idle": 50
     }
   },
   "read_buf_byte": 512, # the protocol tcp read buffer bytes

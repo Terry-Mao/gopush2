@@ -33,7 +33,7 @@ func NewJsonStrMessage(str string) (*Message, error) {
 	m := &Message{}
 	err := json.Unmarshal([]byte(str), m)
 	if err != nil {
-		Log.Printf("json.Unmarshal(\"%s\", &message) failed (%s)", str, err.Error())
+		LogError(LogLevelErr, "json.Unmarshal(\"%s\", &message) failed (%s)", str, err.Error())
 		return nil, err
 	}
 
@@ -48,12 +48,12 @@ func (m *Message) Write(conn net.Conn, key string) error {
 
 	byteJson, err := json.Marshal(res)
 	if err != nil {
-		Log.Printf("json.Marshal(\"%v\") failed", res)
+		LogError(LogLevelErr, "json.Marshal(\"%v\") failed", res)
 		return err
 	}
 
 	respJson := string(byteJson)
-	Log.Printf("device key: sub send to client: %s", respJson)
+	LogError(LogLevelInfo, "push message:\"%s\" to client", respJson)
 	buf := byteJson
 	// TCP Protocol use redis reply, reference: http://redis.io/topics/protocol
 	if Conf.Protocol == TCPProtocol {
@@ -67,7 +67,7 @@ func (m *Message) Write(conn net.Conn, key string) error {
 	}
 
 	if _, err := conn.Write(buf); err != nil {
-		Log.Printf("conn.Write(\"%s\") failed (%s)", respJson, err.Error())
+		LogError(LogLevelErr, "conn.Write() failed (%s)", err.Error())
 		return err
 	}
 

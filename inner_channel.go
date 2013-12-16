@@ -52,7 +52,7 @@ func (c *InnerChannel) SendMsg(conn net.Conn, mid int64, key string) error {
 		if m.Expired() {
 			// WARN:though the node deleted, can access the next node
 			c.message.Delete(n.Score)
-			Log.Printf("delete the expired message %d for device %s", n.Score, key)
+			LogError(LogLevelWarn, "delete the expired message:%d for device:%s", n.Score, key)
 		} else {
 			if err := m.Write(conn, key); err != nil {
 				return err
@@ -70,7 +70,7 @@ func (c *InnerChannel) PushMsg(m *Message, key string) error {
 	defer c.mutex.Unlock()
 	// check message expired
 	if m.Expired() {
-		Log.Printf("device %s: message %d has already expired", key, m.MsgID)
+		LogError(LogLevelWarn, "message:%d has already expired for device:%s", m.MsgID, key)
 		return MsgExpiredErr
 	}
 
@@ -80,12 +80,12 @@ func (c *InnerChannel) PushMsg(m *Message, key string) error {
 		n := c.message.Head.Next()
 		if n == nil {
 			// never happen
-			Log.Printf("the subscriber touch a impossiable place")
+			LogError(LogLevelWarn, "the subscriber touch a impossiable place")
 			panic("Skiplist head nil")
 		}
 
 		c.message.Delete(n.Score)
-		Log.Printf("device %s: message %d exceed the max message (%d) setting, trim the subscriber", key, n.Score, c.MaxMessage)
+		LogError(LogLevelErr, "message:%d exceed the max message (%d) setting, trim the subscriber for device:%s", n.Score, c.MaxMessage, key)
 	}
 
 	err := c.message.Insert(m.MsgID, m)
@@ -99,7 +99,7 @@ func (c *InnerChannel) PushMsg(m *Message, key string) error {
 			continue
 		}
 
-		Log.Printf("push message \"%s\":%d to device %s", m.Msg, m.MsgID, key)
+		LogError(LogLevelInfo, "push message \"%s\":%d for device:%s", m.Msg, m.MsgID, key)
 	}
 
 	return nil
@@ -114,7 +114,7 @@ func (c *InnerChannel) AddConn(conn net.Conn, mid int64, key string) error {
 		return MaxConnErr
 	}
 
-	Log.Printf("add conn for device %s", key)
+	LogError(LogLevelInfo, "add conn for device:%s", key)
 	c.conn[conn] = true
 
 	return nil
@@ -124,7 +124,7 @@ func (c *InnerChannel) AddConn(conn net.Conn, mid int64, key string) error {
 func (c *InnerChannel) RemoveConn(conn net.Conn, mid int64, key string) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	Log.Printf("remove conn for device %s", key)
+	LogError(LogLevelInfo, "remove conn for device:%s", key)
 	delete(c.conn, conn)
 
 	return nil
@@ -176,7 +176,7 @@ func (c *InnerChannel) Close() error {
 	for conn, _ := range c.conn {
 		if err := conn.Close(); err != nil {
 			// ignore close error
-			Log.Printf("conn.Close() failed (%s)", err.Error())
+			LogError(LogLevelErr, "conn.Close() failed (%s)", err.Error())
 		}
 	}
 
