@@ -130,6 +130,7 @@ a simple javascript examples
   "read_buf_byte": 512, # the protocol tcp read buffer bytes
   "write_buf_byte": 512, # the protocl tcp write buffer bytes
   "protocol": 1, # push protocol (0: websocket, 1: tcp)
+  "log_level": 0, # log level (0: error, 1: warn, 2: info, 3:debug)
   "debug": 1 # use test client, http://xx:xx/client (1: open, 0: close)
 }
 ```
