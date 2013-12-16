@@ -10,18 +10,20 @@ import (
 	"time"
 )
 
+const (
+	msgRedisPre    = "m_"
+	onlineRedisPre = "o_"
+	tokenRedisPre  = "t_"
+
+	defaultRedisNode = "node1"
+)
+
 var (
 	ConfigRedisErr = errors.New("redis config not set")
 	RedisNoConnErr = errors.New("can't get a redis conn")
 	RedisDataErr   = errors.New("redis data fatal error")
 	redisPool      = map[string]*redis.Pool{}
 	redisHash      *hash.Ketama
-
-	msgRedisPre    = "m_"
-	onlineRedisPre = "o_"
-	tokenRedisPre  = "t_"
-
-	defaultRedisNode = "node1"
 )
 
 type RedisChannel struct {
@@ -36,6 +38,7 @@ type RedisChannel struct {
 // Init redis channel, such as init redis pool, init consistent hash ring
 func InitRedisChannel() error {
 	if Conf.Redis == nil || len(Conf.Redis) == 0 {
+		LogError(LogLevelWarn, "not configure redis node in config file")
 		return ConfigRedisErr
 	}
 
@@ -57,7 +60,6 @@ func InitRedisChannel() error {
 
 	// consistent hashing
 	redisHash = hash.NewKetama(len(redisPool), 255)
-
 	return nil
 }
 
@@ -84,6 +86,7 @@ func (c *RedisChannel) PushMsg(m *Message, key string) error {
 		}
 
 		if err := m.Write(conn, key); err != nil {
+			LogError(LogLevelErr, "message write error, m.Write() failed (%s)", err.Error())
 			continue
 		}
 
@@ -157,6 +160,7 @@ func (c *RedisChannel) SendMsg(conn net.Conn, mid int64, key string) error {
 		}
 
 		if err := m.Write(conn, key); err != nil {
+			LogError(LogLevelErr, "message write error, m.Write() failed (%s)", err.Error())
 			delete(c.conn, conn)
 			return err
 		}
@@ -166,7 +170,6 @@ func (c *RedisChannel) SendMsg(conn net.Conn, mid int64, key string) error {
 	}
 
 	c.conn[conn] = nmid
-
 	return nil
 }
 
@@ -175,6 +178,7 @@ func (c *RedisChannel) AddConn(conn net.Conn, mid int64, key string) error {
 	// store the online state in redis hashes (HINCRBY)
 	rc := getRedisConn(key)
 	if rc == nil {
+		LogError(LogLevelWarn, "can't get a redis connection")
 		// drop the connection from map, RemoveConn won't call if err
 		c.mutex.Lock()
 		delete(c.conn, conn)
@@ -207,6 +211,7 @@ func (c *RedisChannel) RemoveConn(conn net.Conn, mid int64, key string) error {
 	// remove the online state in redis hashes (HINCRBY)
 	rc := getRedisConn(key)
 	if rc == nil {
+		LogError(LogLevelWarn, "can't get a redis connection")
 		return RedisNoConnErr
 	}
 
@@ -226,6 +231,7 @@ func (c *RedisChannel) AddToken(token string, key string) error {
 	// store the token in redis sets (SADD)
 	conn := getRedisConn(key)
 	if conn == nil {
+		LogError(LogLevelWarn, "can't get a redis connection")
 		return RedisNoConnErr
 	}
 
@@ -254,6 +260,11 @@ func (c *RedisChannel) AddToken(token string, key string) error {
 func (c *RedisChannel) AuthToken(token string, key string) error {
 	// remove the token from redis sets (SREM)
 	conn := getRedisConn(key)
+	if conn == nil {
+		LogError(LogLevelWarn, "can't get a redis connection")
+		return RedisNoConnErr
+	}
+
 	defer conn.Close()
 	reply, err := conn.Do("SREM", tokenRedisPre+key, token)
 	if err != nil {
@@ -309,6 +320,7 @@ func getRedisConn(key string) redis.Conn {
 
 	p, ok := redisPool[node]
 	if !ok {
+		LogError(LogLevelWarn, "no exists key:%s in redisPool map", key)
 		return nil
 	}
 

@@ -78,7 +78,7 @@ func NewChannelList() *ChannelList {
 	if Conf.ChannelType == 2 {
 		if err := InitRedisChannel(); err != nil {
 			LogError(LogLevelErr, "init redis channle failed (%s)", err.Error())
-			panic(err)
+			return nil
 		}
 	}
 
@@ -128,7 +128,7 @@ func (l *ChannelList) Get(key string) (Channel, error) {
 	} else {
 		// check expired
 		if c.Timeout() {
-			LogError(LogLevelWarn, "device %s: channle expired", key)
+			LogError(LogLevelWarn, "device:%s channle expired", key)
 			delete(b.data, key)
 			if err := c.Close(); err != nil {
 				return nil, err

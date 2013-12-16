@@ -32,6 +32,7 @@ const (
 const (
 	WebsocketProtocol = 0
 	TCPProtocol       = 1
+	heartbeatMsg     = "h"
 )
 
 var (
@@ -43,11 +44,10 @@ var (
 	AuthTokenErr = errors.New("Auth token failed")
 	// Token exists
 	TokenExistErr = errors.New("Token already exist")
-)
 
-var (
-	heartbeatMsg     = "h"
+    // heartbeat bytes
 	heartbeatBytes   = []byte(heartbeatMsg)
+    // heartbeat len
 	heartbeatByteLen = len(heartbeatMsg)
 )
 

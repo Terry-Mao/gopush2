@@ -81,7 +81,7 @@ func NewConfig(file string) (*Config, error) {
 	}
 
 	if err = json.Unmarshal(c, cf); err != nil {
-		logi.Printf("json.Unmarshal(\"%s\", cf) failed (%s)", string(c), err.Error())
+		logi.Printf("json.Unmarshal() failed (%s), config json: \"%s\"", err.Error(), string(c))
 		return nil, err
 	}
 

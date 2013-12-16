@@ -33,7 +33,7 @@ func NewJsonStrMessage(str string) (*Message, error) {
 	m := &Message{}
 	err := json.Unmarshal([]byte(str), m)
 	if err != nil {
-		LogError(LogLevelErr, "json.Unmarshal(\"%s\", &message) failed (%s)", str, err.Error())
+		LogError(LogLevelErr, "json.Unmarshal() failed (%s), message json: \"%s\"", err.Error(), str)
 		return nil, err
 	}
 
@@ -48,7 +48,7 @@ func (m *Message) Write(conn net.Conn, key string) error {
 
 	byteJson, err := json.Marshal(res)
 	if err != nil {
-		LogError(LogLevelErr, "json.Marshal(\"%v\") failed", res)
+		LogError(LogLevelErr, "message write error, json.Marshal() failed (%s)", err.Error())
 		return err
 	}
 

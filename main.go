@@ -31,7 +31,11 @@ func main() {
 	defer CloseLog()
 	LogError(LogLevelInfo, "gopush2 start")
 	// create channel
-	channel = NewChannelList()
+	if channel = NewChannelList(); channel == nil {
+		LogError(LogLevelWarn, "NewChannelList() failed, can't create channellist")
+		os.Exit(-1)
+	}
+
 	// start stats
 	StartStats()
 	if Conf.Addr == Conf.AdminAddr {

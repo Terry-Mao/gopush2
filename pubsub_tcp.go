@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"errors"
+	"io"
 	"net"
 	"strconv"
 	"time"
@@ -271,14 +272,14 @@ func parseCmdSize(rd *bufio.Reader, prefix uint8) (int, error) {
 
 	csl := len(cs)
 	if csl <= 3 || cs[0] != prefix || cs[csl-2] != '\r' {
-		LogError(LogLevelWarn, "tcp proto cmd:\"%v\"(%d) number format error", cs, csl)
+		LogError(LogLevelWarn, "tcp proto cmd:\"%v\"(%d) number format error, length error or prefix error or no \\r", cs, csl)
 		return 0, CmdFmtErr
 	}
 
 	// skip the \r\n
 	cmdSize, err := strconv.Atoi(string(cs[1 : csl-2]))
 	if err != nil {
-		LogError(LogLevelErr, "tcp proto cmd:%v number parse int failed (%s)", cs, err.Error())
+		LogError(LogLevelErr, "tcp proto cmd:\"%v\" number parse int failed (%s)", cs, err.Error())
 		return 0, CmdFmtErr
 	}
 
@@ -296,7 +297,7 @@ func parseCmdData(rd *bufio.Reader, cmdLen int) ([]byte, error) {
 	dl := len(d)
 	// check last \r\n
 	if dl != cmdLen+2 || d[dl-2] != '\r' {
-		LogError(LogLevelWarn, "tcp proto cmd:\"%v\"(%d) number format error", d, dl)
+		LogError(LogLevelWarn, "tcp proto cmd:\"%v\"(%d) number format error, length error or no \\r", d, dl)
 		return nil, CmdFmtErr
 	}
 
