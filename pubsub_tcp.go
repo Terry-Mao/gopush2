@@ -8,6 +8,10 @@ import (
 	"time"
 )
 
+const (
+	fitstPacketTimedoutSec = 5
+)
+
 var (
 	CmdFmtErr = errors.New("cmd format error")
 )
@@ -28,7 +32,7 @@ func StartTCP() error {
 	// free the listener resource
 	defer func() {
 		if err := l.Close(); err != nil {
-			LogError(LogLevelErr, "l.Close() failed (%s)", err.Error())
+			LogError(LogLevelErr, "listener.Close() failed (%s)", err.Error())
 		}
 	}()
 
@@ -36,7 +40,7 @@ func StartTCP() error {
 	for {
 		conn, err := l.AcceptTCP()
 		if err != nil {
-			LogError(LogLevelErr, "l.AcceptTCP() failed (%s)", err.Error())
+			LogError(LogLevelErr, "listener.AcceptTCP() failed (%s)", err.Error())
 			continue
 		}
 
@@ -58,7 +62,11 @@ func StartTCP() error {
 			continue
 		}
 
-		// TODO read timeout
+		// first packet must sent by client in 5 seconds
+		if err = conn.SetReadDeadline(time.Now().Add(time.Second * time.Duration(fitstPacketTimedoutSec))); err != nil {
+			LogError(LogLevelErr, "conn.SetReadDeadLine() failed (%s)", err.Error())
+			break
+		}
 
 		go handleTCPConn(conn)
 	}
@@ -68,6 +76,7 @@ func StartTCP() error {
 }
 
 func handleTCPConn(conn net.Conn) {
+	LogError(LogLevelInfo, "handleTcpConn routine start")
 	// parse protocol reference: http://redis.io/topics/protocol (use redis protocol)
 	rd := bufio.NewReaderSize(conn, Conf.ReadBufByte)
 	if args, err := parseCmd(rd); err == nil {
@@ -79,6 +88,8 @@ func handleTCPConn(conn net.Conn) {
 			LogError(LogLevelWarn, "tcp proto:unknown cmd \"%s\"", args[0])
 			break
 		}
+	} else {
+		LogError(LogLevelErr, "parseCmd() failed (%s)", err.Error())
 	}
 
 	// close the connection
@@ -86,6 +97,7 @@ func handleTCPConn(conn net.Conn) {
 		LogError(LogLevelErr, "conn.Close() failed (%s)", err.Error())
 	}
 
+	LogError(LogLevelInfo, "handleTcpConn routine stop")
 	return
 }
 
@@ -102,7 +114,7 @@ func SubscribeTCPHandle(conn net.Conn, args []string) {
 	midStr := args[1]
 	mid, err := strconv.ParseInt(midStr, 10, 64)
 	if err != nil {
-		LogError(LogLevelErr, "mid argument error (%s)", err.Error())
+		LogError(LogLevelErr, "mid:\"%s\" argument error (%s)", midStr, err.Error())
 		return
 	}
 
@@ -112,7 +124,7 @@ func SubscribeTCPHandle(conn net.Conn, args []string) {
 		heartbeatStr = args[2]
 		i, err := strconv.Atoi(heartbeatStr)
 		if err != nil {
-			LogError(LogLevelErr, "heartbeat argument error (%s)", err.Error())
+			LogError(LogLevelErr, "heartbeat:\"%s\" argument error (%s)", heartbeatStr, err.Error())
 			return
 		}
 
@@ -130,14 +142,14 @@ func SubscribeTCPHandle(conn net.Conn, args []string) {
 		token = args[3]
 	}
 
-	// Log.Printf("client %s subscribe to key = %s, mid = %d, token = %s, heartbeat = %d", conn.RemoteAddr().String(), key, mid, token, heartbeat)
+	LogError(LogLevelInfo, "client:%s subscribe to key = %s, mid = %d, token = %s, heartbeat = %d", conn.RemoteAddr().String(), key, mid, token, heartbeat)
 	// fetch subscriber from the channel
 	c, err := channel.Get(key)
 	if err != nil {
 		if Conf.Auth == 0 {
 			c, err = channel.New(key)
 			if err != nil {
-				LogError(LogLevelErr, "device:%s can't create channle", key, err.Error())
+				LogError(LogLevelErr, "device:%s can't create channle (%s)", key, err.Error())
 				return
 			}
 		} else {
@@ -181,13 +193,19 @@ func SubscribeTCPHandle(conn net.Conn, args []string) {
 		}
 
 		if _, err = conn.Read(reply); err != nil {
-			LogError(LogLevelErr, "conn.Read() failed (%s)", err.Error())
+			if err != io.EOF {
+				LogError(LogLevelErr, "device:%s conn.Read() failed, read heartbeat timedout (%s)", key, err.Error())
+			} else {
+				// client connection close
+				LogError(LogLevelInfo, "device:%s client connection close", key)
+			}
+
 			break
 		}
 
 		if string(reply) == heartbeatMsg {
 			if _, err = conn.Write(heartbeatBytes); err != nil {
-				LogError(LogLevelErr, "device:%s write heartbeat to client failed (%s)", key, err.Error())
+				LogError(LogLevelErr, "device:%s conn.Write() failed, write heartbeat to client (%s)", key, err.Error())
 				break
 			}
 
