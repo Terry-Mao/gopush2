@@ -187,10 +187,17 @@ func SubscribeTCPHandle(conn net.Conn, args []string) {
 
 	// blocking wait client heartbeat
 	reply := make([]byte, heartbeatByteLen)
+	begin := time.Now().UnixNano()
+	end := int64Max
 	for {
-		if err = conn.SetReadDeadline(time.Now().Add(time.Second * time.Duration(heartbeat))); err != nil {
-			LogError(LogLevelErr, "conn.SetReadDeadLine() failed (%s)", err.Error())
-			break
+		// more then 1 sec, reset the timer
+		if end-begin > 1000000000 {
+			if err = conn.SetReadDeadline(time.Now().Add(time.Second * time.Duration(heartbeat))); err != nil {
+				LogError(LogLevelErr, "conn.SetReadDeadLine() failed (%s)", err.Error())
+				break
+			}
+
+			begin = time.Now().UnixNano()
 		}
 
 		if _, err = conn.Read(reply); err != nil {
@@ -215,6 +222,8 @@ func SubscribeTCPHandle(conn net.Conn, args []string) {
 			LogError(LogLevelWarn, "device:%s unknown heartbeat protocol", key)
 			break
 		}
+
+		end = time.Now().UnixNano()
 	}
 
 	// remove exists conn

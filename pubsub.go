@@ -32,7 +32,8 @@ const (
 const (
 	WebsocketProtocol = 0
 	TCPProtocol       = 1
-	heartbeatMsg     = "h"
+	heartbeatMsg      = "h"
+	int64Max          = int64(2 ^ 63 - 1)
 )
 
 var (
@@ -45,9 +46,9 @@ var (
 	// Token exists
 	TokenExistErr = errors.New("Token already exist")
 
-    // heartbeat bytes
-	heartbeatBytes   = []byte(heartbeatMsg)
-    // heartbeat len
+	// heartbeat bytes
+	heartbeatBytes = []byte(heartbeatMsg)
+	// heartbeat len
 	heartbeatByteLen = len(heartbeatMsg)
 )
 

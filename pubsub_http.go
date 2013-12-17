@@ -138,8 +138,17 @@ func SubscribeHandle(ws *websocket.Conn) {
 
 	// blocking wait client heartbeat
 	reply := ""
+	begin := time.Now().UnixNano()
+	end := int64Max
 	for {
-		ws.SetReadDeadline(time.Now().Add(time.Second * time.Duration(heartbeat)))
+		// more then 1 sec, reset the timer
+		if end-begin > 1000000000 {
+			if err = ws.SetReadDeadline(time.Now().Add(time.Second * time.Duration(heartbeat))); err != nil {
+				LogError(LogLevelErr, "device:%s websocket.SetReadDeadline() failed (%s)", key, err.Error())
+				break
+			}
+		}
+
 		if err = websocket.Message.Receive(ws, &reply); err != nil {
 			LogError(LogLevelErr, "device:%s websocket.Message.Receive() failed (%s)", key, err.Error())
 			break
@@ -156,6 +165,8 @@ func SubscribeHandle(ws *websocket.Conn) {
 			LogError(LogLevelWarn, "device:%s unknown heartbeat protocol", key)
 			break
 		}
+
+		end = time.Now().UnixNano()
 	}
 
 	// remove exists conn
