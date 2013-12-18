@@ -243,7 +243,7 @@ func SubscribeTCPHandle(conn net.Conn, args []string) {
 				break
 			}
 
-			begin = time.Now().UnixNano()
+			begin = end
 		}
 
 		if _, err = conn.Read(reply); err != nil {

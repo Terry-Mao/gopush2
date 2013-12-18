@@ -87,7 +87,9 @@ func NewChannelList() *ChannelList {
 
 // get a bucket from channel
 func (l *ChannelList) bucket(key string) *channelBucket {
-	idx := hash.MurMurHash2(key) & uint(Conf.ChannelBucket-1)
+	h := hash.NewMurmur3C()
+	h.Write([]byte(key))
+	idx := uint(h.Sum32()) & uint(Conf.ChannelBucket-1)
 	return l.channels[idx]
 }
 

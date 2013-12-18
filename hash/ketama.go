@@ -36,22 +36,16 @@ func NewKetama(node, vnode int) *Ketama {
 
 // init consistent hashing circle
 func (k *Ketama) initCircle() {
+	h := NewMurmur3C()
 	for idx := 1; idx < k.node+1; idx++ {
 		node := fmt.Sprintf("node%d", idx)
 		for i := 0; i < k.vnode; i++ {
-			//nodeMD5 := md5.New()
-			//nodeMD5.Write([]byte(fmt.Sprintf("%s#%d", node, i)))
-			//digest := nodeMD5.Sum(nil)
-			//for j := 0; j < 4; j++ {
-			//	virtualNodePos := hashVal(digest, j)
-			//	k.nodes = append(k.nodes, virtualNodePos)
-			//	k.nodesMapping[virtualNodePos] = node
-			//}
-
 			vnode := fmt.Sprintf("%s#%d", node, i)
-			vpos := MurMurHash2(vnode)
+			h.Write([]byte(vnode))
+			vpos := uint(h.Sum32())
 			k.nodes = append(k.nodes, vpos)
 			k.nodesMapping[vpos] = node
+			h.Reset()
 		}
 	}
 
@@ -60,10 +54,9 @@ func (k *Ketama) initCircle() {
 
 // Node get a consistent hashing node by key
 func (k *Ketama) Node(key string) string {
-	//keyPos := hashVal(digest, 0)
-	//keyPos := MurMurHash2(key)
-	idx := searchLeft(k.nodes, MurMurHash2(key))
-
+	h := NewMurmur3C()
+	h.Write([]byte(key))
+	idx := searchLeft(k.nodes, uint(h.Sum32()))
 	pos := k.nodes[0]
 	if idx != len(k.nodes) {
 		pos = k.nodes[idx]
@@ -87,8 +80,3 @@ func searchLeft(a []uint, x uint) int {
 
 	return lo
 }
-
-// MD5-based hash algorithm used by ketama
-//func hashVal(digest []byte, times int) int {
-//	return int((int(digest[3+times*4]) << 24) | (int(digest[2+times*4]) << 16) | (int(digest[1+times*4]) << 8) | (int(digest[0+times*4])))
-//}
