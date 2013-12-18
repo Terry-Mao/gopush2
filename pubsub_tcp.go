@@ -14,17 +14,44 @@ const (
 )
 
 var (
-	CmdFmtErr       = errors.New("cmd format error")
-	readBufInstance []chan *bufio.Reader
+	CmdFmtErr = errors.New("cmd format error")
 )
 
-func StartTCP() error {
-	// init reader buffer instance
-	readBufInstance = make([]chan *bufio.Reader, 0, Conf.ReadBufInstance)
+type TCPReadBuf struct {
+	instance []chan *bufio.Reader
+}
+
+// NewTCPReadBuf get a mutiple instance chan stored the bufio.Reader obj
+func NewTCPReadBuf() *TCPReadBuf {
+	readBufInstance := make([]chan *bufio.Reader, 0, Conf.ReadBufInstance)
 	for i := 0; i < Conf.ReadBufInstance; i++ {
 		readBufInstance = append(readBufInstance, make(chan *bufio.Reader, Conf.ReadBufNumPerInst))
 	}
 
+	return &TCPReadBuf{instance: readBufInstance}
+}
+
+// get a bufio.Reader, if chan is empty then create a new one
+func (b *TCPReadBuf) Get(conn io.Reader, idx int) *bufio.Reader {
+	select {
+	case rd := <-b.instance[idx]:
+		rd.Reset(conn)
+		return rd
+	default:
+		return bufio.NewReaderSize(conn, Conf.ReadBufByte)
+	}
+}
+
+// put back reader to the chan, if chan is full then discard it
+func (b *TCPReadBuf) Put(buf *bufio.Reader, idx int) {
+	buf.Reset(nil)
+	select {
+	case b.instance[idx] <- buf:
+	default:
+	}
+}
+
+func StartTCP() error {
 	addr, err := net.ResolveTCPAddr("tcp", Conf.Addr)
 	if err != nil {
 		LogError(LogLevelErr, "net.ResolveTCPAddr(\"tcp\"), %s) failed (%s)", Conf.Addr, err.Error())
@@ -44,6 +71,8 @@ func StartTCP() error {
 		}
 	}()
 
+	// init reader buffer instance
+	rb := NewTCPReadBuf()
 	// loop for accept conn
 	round := 0
 	for {
@@ -77,7 +106,7 @@ func StartTCP() error {
 			break
 		}
 
-		go handleTCPConn(conn, round)
+		go handleTCPConn(conn, round, rb)
 		round++
 		if round == Conf.ReadBufInstance {
 			round = 0
@@ -88,31 +117,14 @@ func StartTCP() error {
 	return nil
 }
 
-func handleTCPConn(conn net.Conn, round int) {
-	var rd *bufio.Reader
-
+func handleTCPConn(conn net.Conn, round int, rb *TCPReadBuf) {
 	LogError(LogLevelInfo, "handleTcpConn routine start")
-	c := readBufInstance[round]
-	select {
-	case rd = <-c:
-		rd.Reset(conn)
-		break
-	default:
-		rd = bufio.NewReaderSize(conn, Conf.ReadBufByte)
-		break
-	}
-
 	// parse protocol reference: http://redis.io/topics/protocol (use redis protocol)
+	// get a bufio.reader
+	rd := rb.Get(conn, round)
 	if args, err := parseCmd(rd); err == nil {
-		// return buffer to chan
-		rd.Reset(nil)
-		select {
-		case c <- rd:
-			break
-		default:
-			break
-		}
-
+		// return buffer bufio.Reader
+		rb.Put(rd, round)
 		switch args[0] {
 		case "sub":
 			SubscribeTCPHandle(conn, args[1:])
@@ -122,15 +134,8 @@ func handleTCPConn(conn net.Conn, round int) {
 			break
 		}
 	} else {
-		// return buffer to chan
-		rd.Reset(nil)
-		select {
-		case c <- rd:
-			break
-		default:
-			break
-		}
-
+		// return buffer bufio.Reader
+		rb.Put(rd, round)
 		LogError(LogLevelErr, "parseCmd() failed (%s)", err.Error())
 	}
 

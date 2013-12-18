@@ -77,31 +77,29 @@ func NewRedisChannel() *RedisChannel {
 	return c
 }
 
+// newWriteBuf get a buf from channel or create a new buf if chan is empty
+func (c *RedisChannel) newWriteBuf() *bytes.Buffer {
+	select {
+	case buf := <-c.writeBuf:
+		buf.Reset()
+		return buf
+	default:
+		return bytes.NewBuffer(make([]byte, Conf.WriteBufByte))
+	}
+}
+
+func (c *RedisChannel) putWriteBuf(buf *bytes.Buffer) {
+	select {
+	case c.writeBuf <- buf:
+	default:
+	}
+}
+
 // PushMsg implements the Channel PushMsg method.
 func (c *RedisChannel) PushMsg(m *Message, key string) error {
-	var buf *bytes.Buffer
-
-	// fetch a write buf
-	select {
-	case buf = <-c.writeBuf:
-		buf.Reset()
-		break
-	default:
-		buf = bytes.NewBuffer(make([]byte, Conf.WriteBufByte))
-		break
-
-	}
-
-	// return back write buf, if chan full then discard the buf
-	defer func() {
-		select {
-		case c.writeBuf <- buf:
-			break
-		default:
-			break
-		}
-	}()
-
+	// fetch a write buf, return back after call end
+	buf := c.newWriteBuf()
+	defer c.putWriteBuf(buf)
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	// send message to each conn when message id > conn last message id
@@ -136,29 +134,9 @@ func (c *RedisChannel) SendMsg(conn net.Conn, mid int64, key string) error {
 	// get offline message from redis which greate mid (ZRANGEBYSCORE)
 	// delete the expired message
 	// update the last message id for conn
-	var buf *bytes.Buffer
-
-	// fetch a write buf
-	select {
-	case buf = <-c.writeBuf:
-		buf.Reset()
-		break
-	default:
-		buf = bytes.NewBuffer(make([]byte, Conf.WriteBufByte))
-		break
-
-	}
-
-	// return back write buf, if chan full then discard the buf
-	defer func() {
-		select {
-		case c.writeBuf <- buf:
-			break
-		default:
-			break
-		}
-	}()
-
+	// fetch a write buf, return back after call end
+	buf := c.newWriteBuf()
+	defer c.putWriteBuf(buf)
 	nmid := mid
 	rc := getRedisConn(key)
 	if rc == nil {

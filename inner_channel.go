@@ -54,10 +54,15 @@ func (c *InnerChannel) SendMsg(conn net.Conn, mid int64, key string) error {
 			c.message.Delete(n.Score)
 			LogError(LogLevelWarn, "delete the expired message:%d for device:%s", n.Score, key)
 		} else {
-			if err := m.Write(conn, key); err != nil {
+			b, err := m.Bytes(nil)
+			if err != nil {
+				LogError(LogLevelErr, "message.Bytes(nil) failed (%s)", err.Error())
 				return err
 			}
 
+			if _, err := conn.Write(b); err != nil {
+				return err
+			}
 		}
 	}
 
