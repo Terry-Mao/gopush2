@@ -93,9 +93,16 @@ func (c *InnerChannel) PushMsg(m *Message, key string) error {
 		return err
 	}
 
+	b, err := m.Bytes(nil)
+	if err != nil {
+		LogError(LogLevelErr, "message.Bytes(nil) failed (%s)", err.Error())
+		return err
+	}
+
 	// send message to all the clients
 	for conn, _ := range c.conn {
-		if err := m.Write(conn, key); err != nil {
+		if _, err = conn.Write(b); err != nil {
+			LogError(LogLevelErr, "message write error, conn.Write() failed (%s)", err.Error())
 			continue
 		}
 

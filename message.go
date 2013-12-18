@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 var (
 	// Message expired
 	MsgExpiredErr = errors.New("Message already expired")
+	MsgBufErr     = errors.New("Message writeu buffer nil")
 )
 
 // The Message struct
@@ -40,36 +42,41 @@ func NewJsonStrMessage(str string) (*Message, error) {
 	return m, nil
 }
 
-// Write json encoding the message and write to the conn.
-func (m *Message) Write(conn net.Conn, key string) error {
-	res := map[string]interface{}{}
-	res["msg"] = m.Msg
-	res["mid"] = m.MsgID
+func (m *Message) Bytes(b *bytes.Buffer) ([]byte, error) {
+	res := map[string]interface{}{
+		"msg": m.Msg,
+		"mid": m.MsgID,
+	}
 
 	byteJson, err := json.Marshal(res)
 	if err != nil {
 		LogError(LogLevelErr, "message write error, json.Marshal() failed (%s)", err.Error())
-		return err
+		return nil, err
 	}
 
-	respJson := string(byteJson)
-	LogError(LogLevelInfo, "push message:\"%s\" to client", respJson)
-	buf := byteJson
-	// TCP Protocol use redis reply, reference: http://redis.io/topics/protocol
 	if Conf.Protocol == TCPProtocol {
-		dl := len(byteJson)
-		nl := len(strconv.Itoa(dl))
+		if b == nil {
+			return nil, MsgBufErr
+		}
+
 		// $size\r\ndata\r\n
-		buf = make([]byte, 1+nl+2+dl+2)
-		copy(buf, []byte(fmt.Sprintf("$%d\r\n", dl)))
-		copy(buf[1+nl+2:], byteJson)
-		copy(buf[1+nl+2+dl:], []byte("\r\n"))
-	}
+		if _, err = b.WriteString(fmt.Sprintf("$%d\r\n", len(byteJson))); err != nil {
+			LogError(LogLevelErr, "message write error, b.WriteString() failed (%s)", err.Error())
+			return nil, err
+		}
 
-	if _, err := conn.Write(buf); err != nil {
-		LogError(LogLevelErr, "conn.Write() failed (%s)", err.Error())
-		return err
-	}
+		if _, err = b.Write(byteJson); err != nil {
+			LogError(LogLevelErr, "message write error, b.WriteString() failed (%s)", err.Error())
+			return nil, err
+		}
 
-	return nil
+		if _, err = b.WriteString("\r\n"); err != nil {
+			LogError(LogLevelErr, "message write error, b.WriteString() failed (%s)", err.Error())
+			return nil, err
+		}
+
+		return b.Bytes(), nil
+	} else {
+		return byteJson, nil
+	}
 }

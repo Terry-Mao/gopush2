@@ -106,7 +106,13 @@ func handleTCPConn(conn net.Conn, round int) {
 	if args, err := parseCmd(rd); err == nil {
 		// return buffer to chan
 		rd.Reset(nil)
-		c <- rd
+		select {
+		case c <- rd:
+			break
+		default:
+			break
+		}
+
 		switch args[0] {
 		case "sub":
 			SubscribeTCPHandle(conn, args[1:])
@@ -118,7 +124,13 @@ func handleTCPConn(conn net.Conn, round int) {
 	} else {
 		// return buffer to chan
 		rd.Reset(nil)
-		c <- rd
+		select {
+		case c <- rd:
+			break
+		default:
+			break
+		}
+
 		LogError(LogLevelErr, "parseCmd() failed (%s)", err.Error())
 	}
 

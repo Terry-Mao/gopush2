@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"github.com/Terry-Mao/gopush2/hash"
@@ -33,6 +34,8 @@ type RedisChannel struct {
 	conn map[net.Conn]int64
 	// Channel expired unixnano
 	expire int64
+	// write buffer chan for message sent
+	writeBuf chan *bytes.Buffer
 }
 
 // Init redis channel, such as init redis pool, init consistent hash ring
@@ -69,15 +72,45 @@ func NewRedisChannel() *RedisChannel {
 	c.mutex = &sync.Mutex{}
 	c.conn = map[net.Conn]int64{}
 	c.expire = time.Now().UnixNano() + Conf.ChannelExpireSec*Second
+	c.writeBuf = make(chan *bytes.Buffer, Conf.WriteBufNum)
 
 	return c
 }
 
 // PushMsg implements the Channel PushMsg method.
 func (c *RedisChannel) PushMsg(m *Message, key string) error {
+	var buf *bytes.Buffer
+
+	// fetch a write buf
+	select {
+	case buf = <-c.writeBuf:
+		buf.Reset()
+		break
+	default:
+		buf = bytes.NewBuffer(make([]byte, Conf.WriteBufByte))
+		break
+
+	}
+
+	// return back write buf, if chan full then discard the buf
+	defer func() {
+		select {
+		case c.writeBuf <- buf:
+			break
+		default:
+			break
+		}
+	}()
+
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	// send message to each conn when message id > conn last message id
+	b, err := m.Bytes(buf)
+	if err != nil {
+		LogError(LogLevelErr, "message.Bytes(buf) failed (%s)", err.Error())
+		return err
+	}
+
 	for conn, mid := range c.conn {
 		// ignore message cause it's id less than mid
 		if mid >= m.MsgID {
@@ -85,8 +118,8 @@ func (c *RedisChannel) PushMsg(m *Message, key string) error {
 			continue
 		}
 
-		if err := m.Write(conn, key); err != nil {
-			LogError(LogLevelErr, "message write error, m.Write() failed (%s)", err.Error())
+		if _, err = conn.Write(b); err != nil {
+			LogError(LogLevelErr, "message write error, conn.Write() failed (%s)", err.Error())
 			continue
 		}
 
@@ -103,6 +136,29 @@ func (c *RedisChannel) SendMsg(conn net.Conn, mid int64, key string) error {
 	// get offline message from redis which greate mid (ZRANGEBYSCORE)
 	// delete the expired message
 	// update the last message id for conn
+	var buf *bytes.Buffer
+
+	// fetch a write buf
+	select {
+	case buf = <-c.writeBuf:
+		buf.Reset()
+		break
+	default:
+		buf = bytes.NewBuffer(make([]byte, Conf.WriteBufByte))
+		break
+
+	}
+
+	// return back write buf, if chan full then discard the buf
+	defer func() {
+		select {
+		case c.writeBuf <- buf:
+			break
+		default:
+			break
+		}
+	}()
+
 	nmid := mid
 	rc := getRedisConn(key)
 	if rc == nil {
@@ -159,12 +215,20 @@ func (c *RedisChannel) SendMsg(conn net.Conn, mid int64, key string) error {
 			continue
 		}
 
-		if err := m.Write(conn, key); err != nil {
+		b, err := m.Bytes(buf)
+		if err != nil {
+			LogError(LogLevelErr, "message.Bytes(buf) failed (%s)", err.Error())
+			delete(c.conn, conn)
+			return err
+		}
+
+		if _, err = conn.Write(b); err != nil {
 			LogError(LogLevelErr, "message write error, m.Write() failed (%s)", err.Error())
 			delete(c.conn, conn)
 			return err
 		}
 
+		buf.Reset()
 		nmid = m.MsgID
 		LogError(LogLevelInfo, "push message \"%s\":%d to device:%s", m.Msg, m.MsgID, key)
 	}

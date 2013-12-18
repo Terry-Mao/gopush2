@@ -130,6 +130,7 @@ a simple javascript examples
   "read_buf_instance": 4, # the read buffer instance, suggest the cpu core number
   "read_buf_num_per_inst": 1024, # read buffer cache num per instance
   "read_buf_byte": 512, # the protocol tcp read buffer bytes
+  "write_buf_num": 1024, # write buffer cache num per channel
   "write_buf_byte": 512, # the protocl tcp write buffer bytes
   "protocol": 1, # push protocol (0: websocket, 1: tcp)
   "log_level": 0, # log level (0: error, 1: warn, 2: info, 3:debug)
