@@ -41,6 +41,8 @@ type Config struct {
 	HeartbeatSec        int                     `json:"heartbeat_sec"`
 	Auth                int                     `json:"auth"`
 	Redis               map[string]*RedisConfig `json:"redis"`
+	ReadBufInstance     int                     `json:"read_buf_instance"`
+	ReadBufNumPerInst   int                     `json:"read_buf_num_per_inst"`
 	ReadBufByte         int                     `json:"read_buf_byte"`
 	WriteBufByte        int                     `json:"write_buf_byte"`
 	Protocol            int                     `json:"protocol"`
@@ -73,6 +75,8 @@ func NewConfig(file string) (*Config, error) {
 		HeartbeatSec:        30,
 		Auth:                1,
 		Redis:               nil,
+		ReadBufInstance:     runtime.NumCPU(),
+		ReadBufNumPerInst:   1024,
 		ReadBufByte:         512,
 		WriteBufByte:        512,
 		Protocol:            0,

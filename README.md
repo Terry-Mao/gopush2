@@ -127,6 +127,8 @@ a simple javascript examples
       "idle": 50
     }
   },
+  "read_buf_instance": 4, # the read buffer instance, suggest the cpu core number
+  "read_buf_num_per_inst": 1024, # read buffer cache num per instance
   "read_buf_byte": 512, # the protocol tcp read buffer bytes
   "write_buf_byte": 512, # the protocl tcp write buffer bytes
   "protocol": 1, # push protocol (0: websocket, 1: tcp)
