@@ -47,14 +47,16 @@ func InitRedisChannel() error {
 
 	// redis pool
 	for n, c := range Conf.Redis {
+        // WARN: closures use
+        tc := c
 		redisPool[n] = &redis.Pool{
-			MaxIdle:     c.Idle,
-			MaxActive:   c.Active,
-			IdleTimeout: time.Duration(c.Timeout) * time.Second,
+			MaxIdle:     tc.Idle,
+			MaxActive:   tc.Active,
+			IdleTimeout: time.Duration(tc.Timeout) * time.Second,
 			Dial: func() (redis.Conn, error) {
-				conn, err := redis.Dial(c.Network, c.Addr)
+				conn, err := redis.Dial(tc.Network, tc.Addr)
 				if err != nil {
-					LogError(LogLevelErr, "redis.Dial(\"%s\", \"%s\") failed (%s)", c.Network, c.Addr, err.Error())
+					LogError(LogLevelErr, "redis.Dial(\"%s\", \"%s\") failed (%s)", tc.Network, tc.Addr, err.Error())
 				}
 				return conn, err
 			},
@@ -366,5 +368,6 @@ func getRedisConn(key string) redis.Conn {
 		return nil
 	}
 
+    LogError(LogLevelDebug, "key :%s, node : %s", key, node)
 	return p.Get()
 }
