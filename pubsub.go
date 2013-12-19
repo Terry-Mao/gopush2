@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io/ioutil"
-	"math"
 	"net/http"
 	"net/http/pprof"
 	"strconv"
@@ -34,7 +33,6 @@ const (
 	WebsocketProtocol = 0
 	TCPProtocol       = 1
 	heartbeatMsg      = "h"
-	maxInt64          = int64(math.MaxInt64)
 	oneSecond         = int64(time.Second)
 )
 

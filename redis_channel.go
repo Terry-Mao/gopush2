@@ -47,8 +47,8 @@ func InitRedisChannel() error {
 
 	// redis pool
 	for n, c := range Conf.Redis {
-        // WARN: closures use
-        tc := c
+		// WARN: closures use
+		tc := c
 		redisPool[n] = &redis.Pool{
 			MaxIdle:     tc.Idle,
 			MaxActive:   tc.Active,
@@ -368,6 +368,6 @@ func getRedisConn(key string) redis.Conn {
 		return nil
 	}
 
-    LogError(LogLevelDebug, "key :%s, node : %s", key, node)
+	LogError(LogLevelDebug, "key :%s, node : %s", key, node)
 	return p.Get()
 }

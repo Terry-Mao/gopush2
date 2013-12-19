@@ -139,14 +139,16 @@ func SubscribeHandle(ws *websocket.Conn) {
 	// blocking wait client heartbeat
 	reply := ""
 	begin := time.Now().UnixNano()
-	end := maxInt64
+	end := begin + oneSecond
 	for {
 		// more then 1 sec, reset the timer
-		if end-begin > oneSecond {
+		if end-begin >= oneSecond {
 			if err = ws.SetReadDeadline(time.Now().Add(time.Second * time.Duration(heartbeat))); err != nil {
 				LogError(LogLevelErr, "device:%s websocket.SetReadDeadline() failed (%s)", key, err.Error())
 				break
 			}
+
+			begin = end
 		}
 
 		if err = websocket.Message.Receive(ws, &reply); err != nil {
