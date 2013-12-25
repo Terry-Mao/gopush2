@@ -175,9 +175,9 @@ func (c *RedisChannel) SendMsg(conn net.Conn, mid int64, key string) error {
 		m, err := NewJsonStrMessage(msg)
 		if err != nil {
 			// drop the message, can't unmarshal
-			_, err := rc.Do("HDEL", msgRedisPre+key, m.MsgID)
+			_, err := rc.Do("ZREM", msgRedisPre+key, m.MsgID)
 			if err != nil {
-				LogError(LogLevelErr, "redis(\"HDEL\", \"%s\", %d) failed (%s)", msgRedisPre+key, m.MsgID, err.Error())
+				LogError(LogLevelErr, "redis(\"ZREM\", \"%s\", %d) failed (%s)", msgRedisPre+key, m.MsgID, err.Error())
 			}
 
 			LogError(LogLevelErr, "device:%s: can't unmarshal message %s (%s)", key, msg, err.Error())
@@ -186,9 +186,9 @@ func (c *RedisChannel) SendMsg(conn net.Conn, mid int64, key string) error {
 
 		if m.Expired() {
 			// drop the message, expired
-			_, err := rc.Do("HDEL", msgRedisPre+key, m.MsgID)
+			_, err := rc.Do("ZREM", msgRedisPre+key, m.MsgID)
 			if err != nil {
-				LogError(LogLevelErr, "redis(\"HDEL\", \"%s\", %d) failed (%s)", msgRedisPre+key, m.MsgID, err.Error())
+				LogError(LogLevelErr, "redis(\"ZREM\", \"%s\", %d) failed (%s)", msgRedisPre+key, m.MsgID, err.Error())
 			}
 
 			LogError(LogLevelWarn, "device:%s message %d expired", key, m.MsgID)
